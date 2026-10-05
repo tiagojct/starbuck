@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+.DS_Store
+_starbuck/
+validation/.cache/
+PLAN.md

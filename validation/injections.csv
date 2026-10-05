@@ -1,0 +1,66 @@
+key,error_type,base,field,original,injected,confirmed
+malhotra2009,retracted,malhotra2009,,,,"Crossref notices ['expression_of_concern', 'retraction']; PubMed notices ['ExpressionOfConcernIn', 'RetractionIn']"
+malhotra2008,retracted,malhotra2008,,,,"Crossref notices ['expression_of_concern', 'retraction']; PubMed notices ['ErratumIn', 'ExpressionOfConcernIn', 'RetractionIn']"
+morales2011,retracted,morales2011,,,,Crossref notices ['retraction']; PubMed notices ['RetractionIn']
+hunter2012,retracted,hunter2012,,,,Crossref notices ['retraction']; PubMed notices ['RetractionIn']
+shu2020,retracted,shu2020,,,,Crossref notices ['retraction']; PubMed notices ['RetractionIn']
+mazzon2007,expression_of_concern,mazzon2007,,,,Crossref notices ['expression_of_concern']; PubMed notices ['ExpressionOfConcernIn']
+ikeda2016,expression_of_concern,ikeda2016,,,,Crossref notices ['expression_of_concern']; PubMed notices ['ExpressionOfConcernIn']
+bousbia2012,expression_of_concern,bousbia2012,,,,Crossref notices ['expression_of_concern']; PubMed notices ['ExpressionOfConcernIn']
+nakamori2016,expression_of_concern,nakamori2016,,,,Crossref notices ['expression_of_concern']; PubMed notices ['ExpressionOfConcernIn']
+ortega2014,corrected,ortega2014,,,,Crossref notices []; PubMed notices ['ErratumIn']
+richeldi2014,corrected,richeldi2014,,,,Crossref notices []; PubMed notices ['ErratumIn']
+king2014,corrected,king2014,,,,Crossref notices []; PubMed notices ['ErratumIn']
+albert2011,corrected,albert2011,,,,Crossref notices []; PubMed notices ['ErratumIn']
+sjoding2020,corrected,sjoding2020,,,,Crossref notices []; PubMed notices ['ErratumIn']
+wong2021,corrected,wong2021,,,,Crossref notices []; PubMed notices ['ErratumIn']
+graham2017,corrected,graham2017,,,,Crossref notices ['correction']; PubMed notices ['ErratumIn']
+stanojevic2017,corrected,stanojevic2017,,,,Crossref notices ['correction']; PubMed notices ['ErratumIn']
+esteva2017,corrected,esteva2017,,,,Crossref notices ['erratum']; PubMed notices ['ErratumIn']
+singhal2023,corrected,singhal2023,,,,Crossref notices ['correction']; PubMed notices ['ErratumIn']
+wiens2019,corrected,wiens2019,,,,Crossref notices ['correction']; PubMed notices ['ErratumIn']
+wilkinson2016,corrected,wilkinson2016,,,,Crossref notices ['addendum']; PubMed notices ['ErratumIn']
+mozun2021,preprint_published,mozun2021,,,,Crossref is-preprint-of ['10.1183/23120541.00618-2021']
+mcauley2020,preprint_published,mcauley2020,,,,Crossref is-preprint-of ['10.1183/23120541.00718-2020']
+yang2022,preprint_published,yang2022,,,,Crossref is-preprint-of ['10.1093/jamia/ocac216']
+getzen2022,preprint_published,getzen2022,,,,Crossref is-preprint-of ['10.1016/j.jbi.2022.104269']
+rezelpotts2020,preprint_published,rezelpotts2020,,,,Crossref is-preprint-of ['10.1371/journal.pone.0244764']
+pellegrino2005-fabdoi,fabricated_doi,pellegrino2005,doi,10.1183/09031936.05.00035205,10.1183/09031936.05.00035242,not in Crossref or DataCite; doi.org responseCode 100; no PubMed record
+tashkin2008-fabdoi,fabricated_doi,tashkin2008,doi,10.1056/nejmoa0805800,10.1056/nejmoa0805837,not in Crossref or DataCite; doi.org responseCode 100; no PubMed record
+garg2005-fabdoi,fabricated_doi,garg2005,doi,10.1001/jama.293.10.1223,10.1001/jama.293.10.1260,not in Crossref or DataCite; doi.org responseCode 100; no PubMed record
+kung2023-fabdoi,fabricated_doi,kung2023,doi,10.1371/journal.pdig.0000198,10.1371/journal.pdig.0004927,not in Crossref or DataCite; doi.org responseCode 100; no PubMed record
+wanger2005-otherdoi,doi_of_other_paper,wanger2005,doi,10.1183/09031936.05.00035005,10.1001/jama.293.10.1197,DOI of koppel2005 (verified source)
+celli2004-otherdoi,doi_of_other_paper,celli2004,doi,10.1056/nejmoa021322,10.1038/s41746-018-0029-1,DOI of rajkomar2018 (verified source)
+sittig2010-otherdoi,doi_of_other_paper,sittig2010,doi,10.1136/qshc.2010.042085,10.1056/nejmoa1403290,DOI of ortega2014 (verified source)
+ayers2023-otherdoi,doi_of_other_paper,ayers2023,doi,10.1001/jamainternmed.2023.1838,10.1034/j.1399-3003.1999.14d29.x,DOI of juniper1999 (verified source)
+calverley2007-otherpmid,pmid_of_other_paper,calverley2007,pmid,17314337,26911829,PMID of mandel2016 (verified source)
+jones2009-otherpmid,pmid_of_other_paper,jones2009,pmid,19720809,34152373,PMID of wong2021 (verified source)
+bates2003-otherpmid,pmid_of_other_paper,bates2003,pmid,12925543,10377201,PMID of bestall1999 (verified source)
+kelly2019-otherpmid,pmid_of_other_paper,kelly2019,pmid,31665002,24836312,PMID of king2014 (verified source)
+lange2015-idconflict,doi_pmid_disagree,lange2015,pmid,26154786,18929686,DOI kept; PMID of harris2009 (verified source)
+dweik2011-idconflict,doi_pmid_disagree,dweik2011,pmid,21885636,31649194,DOI kept; PMID of obermeyer2019 (verified source)
+johnson2016-idconflict,doi_pmid_disagree,johnson2016,pmid,27219127,22901886,DOI kept; PMID of pavord2012 (verified source)
+walters2023-idconflict,doi_pmid_disagree,walters2023,pmid,37679503,24836310,DOI kept; PMID of richeldi2014 (verified source)
+bateman2018-year,wrong_year,bateman2018,year,2018,2015,source years [2018]
+kerstjens2012-year,wrong_year,kerstjens2012,year,2012,2009,source years [2012]
+greenhalgh2017-year,wrong_year,greenhalgh2017,year,2017,2014,source years [2017]
+adams2022-year,wrong_year,adams2022,year,2022,2019,source years [2022]
+beasley2019-author,wrong_first_author,beasley2019,author,Beasley,Kawamoto,Kawamoto not among 13 Crossref or 14 PubMed authors
+bhakta2023-author,wrong_first_author,bhakta2023,author,Bhakta,Esteva,Esteva not among 31 Crossref or 31 PubMed authors
+ash2004-author,wrong_first_author,ash2004,author,Ash,Lipson,Lipson not among 1 Crossref or 3 PubMed authors
+wang2018-author,wrong_first_author,wang2018,author,Wang,Albert,Albert not among 11 Crossref or 11 PubMed authors
+hurst2010-order,author_order,hurst2010,author,Hurst; Vestbo,Vestbo; Hurst,first two Crossref authors swapped
+raghu2011-order,author_order,raghu2011,author,Raghu; Collard,Collard; Raghu,first two Crossref authors swapped
+kawamoto2005-order,author_order,kawamoto2005,author,Kawamoto; Houlihan,Houlihan; Kawamoto,first two Crossref authors swapped
+pinnock2013-order,author_order,pinnock2013,author,Pinnock; Hanley,Hanley; Pinnock,first two Crossref authors swapped
+bowerman2023-noid,no_identifier_real,bowerman2023,"doi, pmid",10.1164/rccm.202205-0963oc; 36383197,,identifiers removed; the work is a verified source
+castro2018-noid,no_identifier_real,castro2018,"doi, pmid",10.1056/nejmoa1804092; 29782217,,identifiers removed; the work is a verified source
+bhattacharyya2023-noid,no_identifier_real,bhattacharyya2023,"doi, pmid",10.7759/cureus.39238; 37337480,,identifiers removed; the work is a verified source
+topol2019-noid,no_identifier_real,topol2019,"doi, pmid",10.1038/s41591-018-0300-7; 30617339,,identifiers removed; the work is a verified source
+invented-queequeg,no_identifier_invented,,all,,invented reference,best Crossref title similarity 0.545; PubMed title search 0 hits
+invented-tashtego,no_identifier_invented,,all,,invented reference,best Crossref title similarity 0.42; PubMed title search 0 hits
+invented-daggoo,no_identifier_invented,,all,,invented reference,best Crossref title similarity 0.384; PubMed title search 0 hits
+invented-fedallah,no_identifier_invented,,all,,invented reference,best Crossref title similarity 0.565; PubMed title search 0 hits
+deadpage-ers,dead_web_page,,url,,https://www.ersnet.org/starbuck-validation-missing-page,GET gives 404
+deadpage-who,dead_web_page,,url,,https://www.who.int/starbuck-validation-missing-page,GET gives 404
+deadpage-invalid,dead_web_page,,url,,https://starbuck-validation.invalid/report-2024,GET gives ConnectError

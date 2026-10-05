@@ -1,0 +1,49 @@
+[project]
+name = "starbuck"
+version = "0.2.0"
+description = "Reference-integrity checks for manuscripts: do the cited works exist, match their citations, and still stand?"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Tiago Jacinto" }]
+keywords = ["references", "citations", "research integrity", "retractions", "crossref", "pubmed", "quarto", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "httpx>=0.27",
+    "pyyaml>=6",
+    "mcp>=2.2,<3",
+]
+
+[project.urls]
+Repository = "https://github.com/tiagojct/starbuck"
+Issues = "https://github.com/tiagojct/starbuck/issues"
+
+[project.scripts]
+starbuck = "starbuck.cli:main"
+starbuck-mcp = "starbuck.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/starbuck"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["validation", "examples/_starbuck"]

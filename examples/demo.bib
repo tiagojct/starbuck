@@ -1,0 +1,69 @@
+% Demo bibliography. Each entry is set up to show one kind of result.
+
+@article{miller2005,
+  title = {Standardisation of spirometry},
+  author = {Miller, M. R. and Hankinson, J. and Brusasco, V.},
+  journal = {European Respiratory Journal},
+  year = {2005},
+  doi = {10.1183/09031936.05.00034805}
+}
+
+@article{quanjer2012,
+  title = {Multi-ethnic reference values for spirometry for the 3--95-yr age range: the global lung function 2012 equations},
+  author = {Quanjer, Philip H. and Stanojevic, Sanja and Cole, Tim J.},
+  journal = {European Respiratory Journal},
+  year = {2012},
+  doi = {10.1183/09031936.00080312}
+}
+
+% Expected: Check (the year is wrong)
+@article{graham2019,
+  title = {Standardization of Spirometry 2019 Update. An Official American Thoracic Society and European Respiratory Society Technical Statement},
+  author = {Graham, Brian L. and Steenbruggen, Irene},
+  journal = {American Journal of Respiratory and Critical Care Medicine},
+  year = {2017},
+  doi = {10.1164/rccm.201908-1590ST}
+}
+
+% Expected: Fail (the DOI belongs to Miller et al. 2005)
+@article{gli2012wrong,
+  title = {Multi-ethnic reference values for spirometry for the 3--95-yr age range: the global lung function 2012 equations},
+  author = {Quanjer, Philip H.},
+  journal = {European Respiratory Journal},
+  year = {2012},
+  doi = {10.1183/09031936.05.00034805}
+}
+
+% Expected: Fail (the DOI does not exist)
+@article{invented2024,
+  title = {Deep learning interpretation of spirometry in 40,000 astronauts},
+  author = {Nobody, A.},
+  journal = {European Respiratory Journal},
+  year = {2024},
+  doi = {10.1183/09031936.99999999}
+}
+
+% Expected: Fail (retracted in 2010)
+@article{wakefield1998,
+  title = {Ileal-lymphoid-nodular hyperplasia, non-specific colitis, and pervasive developmental disorder in children},
+  author = {Wakefield, A. J.},
+  journal = {The Lancet},
+  year = {1998},
+  doi = {10.1016/S0140-6736(97)11096-0}
+}
+
+% Expected: Note (no DOI given; Crossref search should find it)
+@article{millernodoi,
+  title = {Standardisation of spirometry},
+  author = {Miller, M. R.},
+  journal = {European Respiratory Journal},
+  year = {2005}
+}
+
+@online{vaswani2017,
+  title = {Attention Is All You Need},
+  author = {Vaswani, Ashish},
+  year = {2017},
+  eprint = {1706.03762},
+  eprinttype = {arxiv}
+}

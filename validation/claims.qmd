@@ -1,0 +1,44 @@
+---
+title: "Starbuck level 4 cases"
+bibliography: references.bib
+---
+
+In COPD, salmeterol plus fluticasone reduced the annual rate of exacerbations compared with placebo [@calverley2007].
+
+In COPD, salmeterol plus fluticasone reduced both exacerbations and all-cause mortality compared with placebo [@calverley2007].
+
+Salmeterol plus fluticasone significantly reduced all-cause mortality in COPD over three years [@calverley2007].
+
+Salmeterol plus fluticasone is cost-effective for COPD in primary care [@calverley2007].
+
+About half of the people who had COPD at the end of follow-up had a low FEV1 in early adulthood rather than a rapid decline [@lange2015].
+
+A low FEV1 before 40 years of age was associated with COPD 22 years later, and the same pattern was found in children followed to adulthood [@lange2015].
+
+An accelerated decline in FEV1 is an obligate feature of COPD [@lange2015].
+
+Respiratory infections in early childhood explain most cases of low lung function in early adulthood [@lange2015].
+
+In adults with mild asthma, as-needed budesonide-formoterol was superior to as-needed albuterol for preventing exacerbations [@beasley2019].
+
+As-needed budesonide-formoterol halved the exacerbation rate compared with both as-needed albuterol and budesonide maintenance therapy [@beasley2019].
+
+Patients using budesonide-formoterol as needed took a higher daily dose of inhaled budesonide than patients on budesonide maintenance therapy [@beasley2019].
+
+As-needed budesonide-formoterol is also effective in children with mild asthma [@beasley2019].
+
+A widely used commercial risk algorithm was racially biased because it predicted health care costs rather than illness [@obermeyer2019].
+
+A widely used commercial risk algorithm was racially biased, and retraining it to predict mortality removed the bias [@obermeyer2019].
+
+At the same risk score, Black and White patients had a similar burden of illness [@obermeyer2019].
+
+The same algorithm was also biased against Hispanic patients [@obermeyer2019].
+
+ChatGPT performed at or near the passing threshold of all three USMLE exams without specialized training [@kung2023].
+
+ChatGPT performed at or near the USMLE passing threshold and scored higher than the average medical student [@kung2023].
+
+ChatGPT needed specialized medical fine-tuning to approach the USMLE passing threshold [@kung2023].
+
+ChatGPT fabricated references in its explanations of USMLE answers [@kung2023].

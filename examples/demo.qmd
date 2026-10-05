@@ -1,0 +1,13 @@
+---
+title: "Demo manuscript for Starbuck"
+bibliography: demo.bib
+---
+
+Spirometry must follow standard procedures [@miller2005; @graham2019]. Reference
+values come from the Global Lung Function Initiative equations [@quanjer2012], which a
+second reference also supports [@gli2012wrong]. They were later validated in 40,000
+astronauts [@invented2024].
+
+Older claims linking vaccines to developmental disorders [@wakefield1998] were refuted
+[@deer2011]. The same standards paper is sometimes cited without a DOI [@millernodoi].
+Transformer models [@vaswani2017] are now applied to lung function.
