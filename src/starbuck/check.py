@@ -602,7 +602,7 @@ async def check_document(doc: Document, src: Sources, include_uncited: bool = Fa
                          progress: Callable[[int, int], None] | None = None) -> dict:
     cited = doc.cited_keys()
     keys = [k for k in cited if k in doc.references]
-    if doc.style == "numbered" or include_uncited:
+    if doc.style in ("numbered", "authoryear") or include_uncited:
         # Numbered lists are written for this text, so every entry is checked, cited or not.
         keys += [k for k in doc.references if k not in cited]
     results = await check_references([doc.references[k] for k in keys], src, progress, doc.date)
@@ -615,7 +615,7 @@ async def check_document(doc: Document, src: Sources, include_uncited: bool = Fa
         "starbuck": __version__,
         "checked_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "document": doc.path, "style": doc.style, "bibliography": doc.bibliography, "warnings": doc.warnings,
-        **({"manuscript_date": doc.date} if doc.date else {}),
+        **({"manuscript_date": doc.date} if doc.date else {}), "unit": doc.unit,
         "levels": [1, 2, 3],
         "summary": {"references_checked": len(results), **counts, "citations": len(doc.citations),
                     "cited_keys": len(cited), "missing_entries": len(missing), "uncited_entries": len(uncited),

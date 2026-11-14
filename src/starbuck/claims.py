@@ -358,7 +358,7 @@ def apply(result: dict, claims: list[dict], judged_by: str) -> dict:
         res["claims"] = by_key.get(res["key"], [])
         res["findings"] = [f for f in res["findings"] if not f["code"].startswith("claim_")]
         for c in res["claims"]:
-            where = f"Line {c['line']}"
+            where = f"{(result.get('unit') or 'line').capitalize()} {c['line']}"
             if c["verdict"] == "not_supported":
                 res["findings"].append({"level": "warn", "code": "claim_not_supported",
                                         "message": f"{where}: the {c['basis']} does not support the citing "

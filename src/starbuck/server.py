@@ -91,7 +91,9 @@ class RefIn(BaseModel):
 @safe
 async def check_manuscript(path: str, bibliography: list[str] | None = None, report_dir: str | None = None,
                            formats: list[str] | None = None, include_uncited: bool = False) -> dict:
-    """Check every cited reference of a Markdown or Quarto manuscript and write a report.
+    """Check every cited reference of a manuscript (Markdown, Quarto, Word .docx or LaTeX .tex)
+    and write a report. Word citation fields (Zotero, Mendeley, EndNote) and author-year
+    citations are read too.
     Reads [@citekey] citations with the bibliography named in the YAML header (or given here),
     or numbered [1] citations with a numbered list under a References/Sources heading.
     Writes <name>-references.qmd and .json to report_dir (default: _starbuck next to the

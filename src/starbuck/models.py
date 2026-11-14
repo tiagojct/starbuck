@@ -58,6 +58,7 @@ class Document:
     bibliography: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     uncited_sentences: list[dict] = field(default_factory=list)  # sentences that state a finding, no citation
+    unit: str = "line"  # where citations are: line (text files) or paragraph (Word)
     date: str = ""  # the manuscript date (YAML date:, or --date), ISO: YYYY, YYYY-MM or YYYY-MM-DD
 
     def cited_keys(self) -> list[str]:

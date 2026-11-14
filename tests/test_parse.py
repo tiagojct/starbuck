@@ -231,3 +231,12 @@ def test_uncited_sentences_refs_div_and_bold_heading(tmp_path):
     ms.write_text("::: {#refs}\nA reference that found a prevalence of 4.3% in adults worldwide in 2012.\n:::\n",
                   encoding="utf-8")
     assert read_manuscript(ms).uncited_sentences == []
+
+
+def test_own_work_sentences_and_figure_sections_are_not_listed(tmp_path):
+    from starbuck.parse import read_manuscript
+    f = tmp_path / "a.md"
+    f.write_text("# Introduction\n\nWe found that 30% of adults with asthma had poor control in this cohort.\n\n"
+                 "Asthma affects 300 million people worldwide and the prevalence keeps rising today.\n\n"
+                 "## Figure 2. Lung function by group\n\nMean FEV1 fell by 20% in the group with high FGF-23 values.\n")
+    assert [u["line"] for u in read_manuscript(f).uncited_sentences] == [5]

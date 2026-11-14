@@ -28,7 +28,7 @@ import yaml
 from . import bibtex
 from .check import check_document
 from .models import Document, Reference
-from .parse import ENTRY_RE, REF_HEADING, ParseError, read_manuscript
+from .parse import REF_HEADING, ParseError, _unheaded_list, entry, read_manuscript
 from .report import ACTION
 from .sources import ServiceError, Sources
 
@@ -176,16 +176,16 @@ def edit_csl(text: str, suffix: str, changes: list[Change]) -> tuple[str, list[C
 def edit_numbered(text: str, refs: dict[str, Reference], changes: list[Change]) -> tuple[str, list[Change]]:
     """Numbered references in the manuscript: add identifiers, replace a link or a year."""
     heads = list(REF_HEADING.finditer(text))
-    if not heads:
-        return text, []
-    lines = text[heads[-1].end():].split("\n")
-    offset = heads[-1].end()
+    offset = heads[-1].end() if heads else _unheaded_list(text, 0)
+    if offset is None:
+        offset = len(text)
+    lines = text[offset:].split("\n")
     where: dict[str, tuple[int, int]] = {}  # number -> (start, end) of the entry
     pos, current = offset, None
     for line in lines:
-        m = ENTRY_RE.match(line)
-        if m:
-            current = m.group(1) or m.group(2)
+        e = entry(line)
+        if e:
+            current = e[0]
             where[current] = (pos, pos + len(line))
         elif current and line.strip() and line[:1].isspace():
             where[current] = (where[current][0], pos + len(line))
@@ -194,15 +194,18 @@ def edit_numbered(text: str, refs: dict[str, Reference], changes: list[Change]) 
         pos += len(line) + 1
     edits, done = [], []
     for c in changes:
+        raw = refs[c.key].raw if c.key in refs else ""
+        if c.key not in where and raw and text.count(raw) == 1:
+            where[c.key] = (text.index(raw), text.index(raw) + len(raw))
         if c.key not in where:
             continue
         a, b = where[c.key]
-        entry = text[a:b]
+        written = text[a:b]
         if c.field in ("doi", "pmid", "isbn") and not c.old:
             label = {"doi": "doi:", "pmid": "PMID: ", "isbn": "ISBN "}[c.field]
             edits.append((b, b, f" {label}{c.new}"))
-        elif c.field in ("url", "doi", "year") and c.old and entry.count(c.old) == 1:
-            i = a + entry.index(c.old)
+        elif c.field in ("url", "doi", "year") and c.old and written.count(c.old) == 1:
+            i = a + written.index(c.old)
             edits.append((i, i + len(c.old), c.new))
         else:
             continue

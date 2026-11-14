@@ -1,8 +1,8 @@
 # Starbuck
 
-Reference-integrity checks for manuscripts. Starbuck reads a Markdown or Quarto
-manuscript with its bibliography and checks each cited reference against public
-scholarly records. It writes a Quarto report that renders to HTML or Word.
+Reference-integrity checks for manuscripts. Starbuck reads a Word, LaTeX,
+Markdown or Quarto manuscript with its references and checks each cited
+reference against public scholarly records. It writes a Quarto report that renders to HTML or Word.
 
 > *"I will have no man in my boat," said Starbuck, "who is not afraid of a whale."*
 > Herman Melville, *Moby-Dick*, chapter 26
@@ -31,9 +31,11 @@ the text does not cite, and sentences that state a finding without a citation.
 A sentence is listed when it has at least 50 characters, cites nothing, and
 has a number with a unit or a percentage, an effect measure (OR, HR, RR, CI)
 or a claim word such as found, showed, increased, reduced, associated with,
-risk or prevalence. Headings, tables, figures, captions, code, the reference
-list and sections headed Methods or Results are left out: the authors' own
-methods and data need no citation. The rules are simple and English only, so
+risk or prevalence. Headings, tables, figures, captions, code and the reference
+list are left out. So are the abstract, the sections headed Methods, Results or
+Conclusions, the back matter (ethics, funding, abbreviations), paragraphs that
+start with a label such as "Results:", and sentences that start with "We" or
+"In this study": the authors' own work needs no citation. The rules are simple and English only, so
 the list is for a person to read; it never makes a reference Fail or Check.
 
 A retraction that only OpenAlex reports is Check, not Fail: OpenAlex marks some
@@ -107,23 +109,40 @@ again only for new or changed references. Answers that report retractions and
 corrections are kept for one day; records for seven days. Use `--no-cache` to ask
 every service again.
 
-To check a Word manuscript, convert it to Markdown first:
-
 ```sh
-quarto pandoc paper.docx -o paper.md
+starbuck check paper.docx                    # Word, with or without citation fields
+starbuck check paper.tex                     # LaTeX with BibTeX or thebibliography
 ```
 
 ### Input
 
-Starbuck reads two citation styles:
+Starbuck reads four citation styles:
 
 - Citation keys: Pandoc citations such as `[@key]`, `[see @key, p. 3; @other]`
   and `@key` in running text. The bibliography can be BibTeX or BibLaTeX
   (`.bib`), CSL JSON (`.json`) or CSL YAML (`.yaml`), or `references:` in the
   YAML header.
 - Numbered references: `[1]`, `[2, 5]`, `[3-4]` in the text, with a numbered list
-  under a heading such as References or Sources. AI research agents often write
-  this format.
+  under a heading such as References or Sources, or at the end of the text
+  without a heading. Entries can start with `1.`, `1)`, `[1]`, `(1)` or `1 `. AI
+  research agents often write this format.
+- Author-year: `(Smith et al., 2020; Jones 2019a)` and `Smith et al. (2020)`,
+  with an unnumbered list (APA, Harvard).
+- Citation fields in Word: Zotero, Mendeley Desktop and EndNote keep the record
+  of each cited work in the document. Starbuck reads these records, so no
+  bibliography file is needed.
+
+Formats:
+
+- Markdown and Quarto (`.md`, `.qmd`, `.Rmd`, `.txt`).
+- Word (`.docx`). Without citation fields, Starbuck reads the text: numbered or
+  author-year citations, and superscript citation numbers (except on the title
+  page). Locations in the report are paragraph numbers.
+- LaTeX (`.tex`): `\cite` and its natbib and biblatex forms, with the files of
+  `\bibliography` or `\addbibresource`, or a `thebibliography` environment.
+
+`starbuck fix` does not change Word or LaTeX files. For these, it lists the
+changes for you to make by hand (a `.bib` file is changed as usual).
 
 ### Output
 

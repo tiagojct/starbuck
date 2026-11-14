@@ -98,9 +98,13 @@ def _ordered(results: list[dict]) -> list[dict]:
     return sorted(results, key=lambda r: SEVERITY[r["verdict"]])
 
 
-def _cited_at(res: dict, limit: int = 2) -> list[str]:
+def _unit(result: dict) -> str:
+    return (result.get("unit") or "line").capitalize()
+
+
+def _cited_at(res: dict, limit: int = 2, unit: str = "Line") -> list[str]:
     cites = res.get("cited_in") or []
-    lines = [f"> Line {c['line']}: {esc(c['sentence'])}" for c in cites[:limit]]
+    lines = [f"> {unit} {c['line']}: {esc(c['sentence'])}" for c in cites[:limit]]
     if len(cites) > limit:
         lines.append(f"> (cited {len(cites) - limit} more time{'s' if len(cites) - limit > 1 else ''})")
     return lines
@@ -148,7 +152,8 @@ def to_quarto(result: dict) -> str:
         "## Summary",
         "",
     ]
-    style = {"citekey": "citation keys", "numbered": "numbered references"}.get(result.get("style", ""), "")
+    style = {"citekey": "citation keys", "numbered": "numbered references", "fields": "Word citation fields",
+             "authoryear": "author-year citations"}.get(result.get("style", ""), "")
     where = f" in {esc(doc.name)}" if result.get("document") else ""
     bib = ", ".join(esc(Path(b).name) for b in result.get("bibliography") or [])
     out.append(f"Starbuck {result['starbuck']} checked {s['references_checked']} "
@@ -208,7 +213,7 @@ def to_quarto(result: dict) -> str:
         rec = (r.get("match") or {}).get("record") or {}
         if rec and (rec.get("doi") or rec.get("pmid")) and rec.get("doi") != r["reference"].get("doi"):
             out += ["", f"Record found: {ident_links(rec)}"]
-        cited = _cited_at(r)
+        cited = _cited_at(r, unit=_unit(result))
         if cited:
             out += [""] + cited
         if a := _action(r):
@@ -288,7 +293,7 @@ def _uncited_section(result: dict) -> list[str]:
            "need no citation.", ""]
     if total > len(rows):
         out += [f"The first {len(rows)} of {total} are shown.", ""]
-    out += ["| Line | Sentence |", "|---|---|"]
+    out += [f"| {_unit(result)} | Sentence |", "|---|---|"]
     out += [f"| {r['line']} | {esc(r['sentence'])} |" for r in rows]
     out.append("")
     return out
@@ -301,7 +306,7 @@ def _claims_section(result: dict) -> list[str]:
     out = ["## Claim support", "",
            "Each row is one citing sentence and one cited source. Read the source before you change the text: "
            "the verdict comes from a language model and can be wrong.", "",
-           "| Line | Key | Verdict | Evidence | Sentence | Passage or reason |", "|---|---|---|---|---|---|"]
+           f"| {_unit(result)} | Key | Verdict | Evidence | Sentence | Passage or reason |", "|---|---|---|---|---|---|"]
     for c in claims:
         sentence = c["sentence"] if len(c["sentence"]) <= 300 else c["sentence"][:297] + "..."
         evidence = f"{c['basis']} ({c['source']})" if c.get("source") else c["basis"]
