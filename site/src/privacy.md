@@ -27,6 +27,8 @@ Your contact address (`STARBUCK_EMAIL`) goes to the services that ask for one, s
 
 Starbuck collects no usage data and has no account.
 
+This website (not the program) counts visits with Umami, on the author's own server. Umami sets no cookies and keeps no IP addresses: it counts the pages visited, the referring site, the browser, the device type and the country.
+
 ## In Sub-Sub
 
 When Starbuck runs in Sub-Sub, the same holds, and level 4 uses the model provider that you chose for Sub-Sub. See the [Sub-Sub privacy page]({{ site.subsub }}/privacy/).
