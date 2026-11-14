@@ -1,0 +1,8 @@
+{
+  "url": "https://starbuck.tiagojacinto.eu",
+  "title": "Starbuck",
+  "description": "Reference checks for manuscripts: does every cited work exist, match its citation and still stand? Free and open source, for Word, LaTeX, Markdown and Quarto.",
+  "repo": "https://github.com/tiagojct/starbuck",
+  "pypi": "https://pypi.org/project/starbuck/",
+  "subsub": "https://subsub.tiagojacinto.eu"
+}

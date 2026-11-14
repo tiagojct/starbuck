@@ -1,0 +1,166 @@
+---
+layout: base.njk
+title: Starbuck
+hideTitle: true
+bodyClass: home
+description: Starbuck checks the references of a manuscript against Crossref, PubMed, OpenAlex and other public records. Does each cited work exist, does it match the citation, was it retracted? For Word, LaTeX, Markdown and Quarto. Free and open source.
+alt: /pt/
+---
+
+<section class="plate" aria-labelledby="plate-1">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">Reference checks for manuscripts</span><span>Plate I.</span></p>
+		<div class="plate-grid">
+			<div class="legend">
+				<h1 id="plate-1">Check every reference before a reviewer does.</h1>
+				<p class="lead">Starbuck reads a manuscript and its reference list, and looks up each cited work in Crossref, PubMed, OpenAlex and other public records. It tells you which references do not exist, which point to a different paper, which have a wrong year or author, and which cite a retracted work. It proposes the corrections as a diff.</p>
+
+				<div class="install" data-tabs>
+					<div class="install-tabs" role="tablist" aria-label="Install">
+						<button type="button" role="tab" id="tab-uv" aria-controls="panel-uv" aria-selected="true">uv</button>
+						<button type="button" role="tab" id="tab-pipx" aria-controls="panel-pipx" aria-selected="false" tabindex="-1">pipx</button>
+						<button type="button" role="tab" id="tab-subsub" aria-controls="panel-subsub" aria-selected="false" tabindex="-1">In Sub-Sub</button>
+					</div>
+					<div class="install-panel" role="tabpanel" id="panel-uv" aria-labelledby="tab-uv">
+						<pre class="cmd"><code>uv tool install starbuck</code></pre>
+						<p>Then <code>starbuck check paper.docx</code>. Needs <a href="https://docs.astral.sh/uv/" rel="noopener">uv</a>; Python 3.11 or later comes with it. <a href="/guide/">Guide</a>.</p>
+					</div>
+					<div class="install-panel" role="tabpanel" id="panel-pipx" aria-labelledby="tab-pipx" hidden>
+						<pre class="cmd"><code>pipx install starbuck</code></pre>
+						<p>Needs Python 3.11 or later. <code>pip install starbuck</code> also works in a virtual environment.</p>
+					</div>
+					<div class="install-panel" role="tabpanel" id="panel-subsub" aria-labelledby="tab-subsub" hidden>
+						<pre class="cmd"><code>subsub init --starbuck on</code></pre>
+						<p>Sub-Sub downloads Starbuck the first time. Then type <code>/verify paper.docx</code>. <a href="/sub-sub/">Starbuck in Sub-Sub</a>.</p>
+					</div>
+				</div>
+				<p class="hero-alt">Word, LaTeX, Markdown and Quarto. Zotero, Mendeley and EndNote citations in Word are read directly. <a href="/how-it-checks/">How it checks</a> · <a href="/validation/">How well it checks</a></p>
+				<p class="newcomer sibling">Starbuck is the reference checker of <a href="{{ site.subsub }}">Sub-Sub</a>, the research assistant for Zotero. It also works on its own: in the terminal, in a GitHub Action, or from any AI agent.</p>
+			</div>
+
+			<figure class="specimen-fig" data-plate>
+				<div class="specimen" aria-hidden="true">
+					<div class="sp-window">
+						<div class="sp-bar">
+							<span class="sp-brand"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z"/><path d="M8.8 9h6.4M8.8 12h4"/><path d="m9.2 16 2 2 3.8-4.2"/></svg>Reference check</span>
+							<span class="sp-modes"><span class="on">paper.docx</span></span>
+						</div>
+						<div class="sp-body">
+							<p class="sp-summary"><span><span class="v fail">Fail</span> 1</span><span><span class="v check">Check</span> 1</span><span><span class="v note">Note</span> 2</span><span><span class="v pass">Pass</span> 31</span></p>
+							<div class="sp-ref" data-part="1">
+								<p class="sp-ref-head"><span class="v fail">Fail</span>wakefield1998<i class="pin" data-fig="1"></i></p>
+								<p class="sp-ref-body">Retracted (2010-02-06; Retraction Watch, PubMed, OpenAlex). The retraction came before the manuscript date.<span class="act">Remove the citation, or say in the text that the work was retracted.</span></p>
+							</div>
+							<div class="sp-ref" data-part="2">
+								<p class="sp-ref-head"><span class="v check">Check</span>graham2019<i class="pin" data-fig="2"></i></p>
+								<p class="sp-ref-body">Year differs: cited 2017, record 2019.</p>
+							</div>
+							<div class="sp-ref" data-part="3">
+								<p class="sp-ref-head"><span class="v note">Note</span>castro2018<i class="pin" data-fig="3"></i></p>
+								<p class="sp-ref-body">No identifier given; PubMed has a matching record, doi:10.1056/nejmoa1804092.</p>
+							</div>
+							<p class="sp-quote" data-part="4">Paragraph 14 · <span class="v note">Partly</span> "Of 1,140 home manoeuvres, 71% met the acceptability criteria." The sentence says 80%.<i class="pin" data-fig="4"></i></p>
+							<div class="sp-diff" data-part="5"><span class="rem">-  year = {2017},</span>
+<span class="add">+  year = {2019},</span>
+<span class="add">+  doi = {10.1056/nejmoa1804092}</span><i class="pin" data-fig="5"></i></div>
+						</div>
+					</div>
+					<div class="margin" hidden>
+						<span class="fig-no" data-fig="1">1</span>
+						<span class="fig-no" data-fig="2">2</span>
+						<span class="fig-no" data-fig="3">3</span>
+						<span class="fig-no" data-fig="4">4</span>
+						<span class="fig-no" data-fig="5">5</span>
+					</div>
+					<svg class="leaders"></svg>
+				</div>
+				<figcaption class="caption">
+					<p><span class="sc">Plate I.</span> <i>A report, drawn part by part. The three references and their findings are real; the sentence of Fig. 4 is invented for the example.</i></p>
+					<ol class="figs">
+						<li><button type="button" data-fig="1" aria-pressed="false"><span class="sc">Fig. 1.</span> <i>Fail.</i> The work does not exist, is a different work, or was retracted. Each Fail says what to do.</button></li>
+						<li><button type="button" data-fig="2" aria-pressed="false"><span class="sc">Fig. 2.</span> <i>Check.</i> A person should look: a field differs, or the work could not be confirmed.</button></li>
+						<li><button type="button" data-fig="3" aria-pressed="false"><span class="sc">Fig. 3.</span> <i>Note.</i> Information that needs no change in most cases, such as a DOI found by search.</button></li>
+						<li><button type="button" data-fig="4" aria-pressed="false"><span class="sc">Fig. 4.</span> <i>Claim support.</i> Optional: a language model reads the source and must quote it word for word. Starbuck checks the quote and the numbers.</button></li>
+						<li><button type="button" data-fig="5" aria-pressed="false"><span class="sc">Fig. 5.</span> <i>The correction.</i> <code>starbuck fix</code> writes what the records support as a diff. Your files change only when you say so.</button></li>
+					</ol>
+				</figcaption>
+			</figure>
+		</div>
+	</div>
+</section>
+
+<section class="plate" aria-labelledby="plate-2">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">What it checks</span><span>Plate II.</span></p>
+		<h2 id="plate-2">Four questions for each reference.</h2>
+		<ol class="levels">
+			<li><span class="lv">Level 1</span><h3>Does it exist?</h3><p>The DOI, PMID, PMCID, arXiv ID or ISBN resolves. Without an identifier, Starbuck searches Crossref, PubMed, OpenAlex, DataCite and Open Library. A dead link gets its Wayback Machine copy.</p></li>
+			<li><span class="lv">Level 2</span><h3>Does it match?</h3><p>The cited title, first author and year agree with the record. A real DOI that belongs to another paper is a Fail.</p></li>
+			<li><span class="lv">Level 3</span><h3>Does it still stand?</h3><p>Retractions, expressions of concern and corrections, from Crossref with Retraction Watch data, PubMed and OpenAlex. A cited preprint with a published version gets a Note.</p></li>
+			<li class="opt"><span class="lv">Level 4, optional</span><h3>Does it support the sentence?</h3><p>A language model reads the full text or the abstract and quotes the passage it relies on. Starbuck rejects a quote that is not in the source.</p></li>
+		</ol>
+		<p class="section-lead">It also lists citations without a reference, references that the text does not cite, and sentences that state a finding without a citation. <a href="/how-it-checks/">The rules</a>.</p>
+	</div>
+</section>
+
+<section class="plate" aria-labelledby="plate-3">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">What it reads</span><span>Plate III.</span></p>
+		<div class="split">
+			<div>
+				<h2 id="plate-3">Write in the tool you use.</h2>
+				<p class="section-lead">No export step. Starbuck reads the manuscript as you write it.</p>
+				<ul class="result-points">
+					<li><strong>Word.</strong> Citations inserted with Zotero, Mendeley or EndNote carry their records, so no bibliography file is needed. Without them, Starbuck reads numbered, superscript and author-year citations.</li>
+					<li><strong>LaTeX.</strong> <code>\cite</code> in its natbib and biblatex forms, with the <code>.bib</code> files, or a <code>thebibliography</code> list.</li>
+					<li><strong>Markdown and Quarto.</strong> Pandoc citations with BibTeX, CSL JSON or CSL YAML, and the numbered lists that AI research agents write.</li>
+				</ul>
+			</div>
+			<div class="prose-block">
+				<p>The report is a Quarto document that renders to one HTML page or to Word, with a JSON file for other tools. It starts with the references that need attention, each with the reason, the cited and the recorded details side by side, the sentence that cites it, and what to do.</p>
+				<p><code>starbuck fix</code> turns the corrections that the records support into a diff of your <code>.bib</code>, CSL or Markdown file: a missing DOI, a wrong year, the published version of a preprint. It changes the file only with <code>--in-place</code>, and keeps a copy.</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section class="plate" aria-labelledby="plate-4">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">Starbuck and Sub-Sub</span><span>Plate IV.</span></p>
+		<h2 id="plate-4">Two tools from the same crew.</h2>
+		<div class="pair">
+			<div>
+				<h3>Starbuck on its own</h3>
+				<p>A command for the terminal, an MCP server for any AI agent, a GitHub Action and a pre-commit hook. For authors before submission, for co-authors, for editors and reviewers, and for agents that must check the sources they write.</p>
+				<p><a href="/guide/">Guide</a> · <a href="/automate/">Automate</a></p>
+			</div>
+			<div class="pair-box">
+				<h3>Starbuck in Sub-Sub</h3>
+				<p><a href="{{ site.subsub }}">Sub-Sub</a> is a research assistant that works from your own Zotero library. With reference checks on, its Researcher has <code>/verify</code>: Starbuck checks the manuscript, the model you use in Sub-Sub judges claim support, and Sub-Sub asks before a report or a correction is written outside your folders.</p>
+				<p><a href="/sub-sub/">How they work together</a> · <a href="{{ site.subsub }}/install/#reference-checks-starbuck">Turn it on in Sub-Sub</a></p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section class="plate" aria-labelledby="plate-5">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">How well it checks</span><span>Plate V.</span></p>
+		<h2 id="plate-5">Tested on errors that were put in on purpose.</h2>
+		<div class="figures">
+			<div><b>{{ validation.strict.k }}/{{ validation.strict.n }}</b><span>injected errors found with the expected result and reason (95% CI {{ validation.strict.lo }} to {{ validation.strict.hi }}%)</span></div>
+			<div><b>{{ validation.specificity.k }}/{{ validation.specificity.n }}</b><span>correct references that passed (95% CI {{ validation.specificity.lo }} to {{ validation.specificity.hi }}%)</span></div>
+			<div><b>36/36</b><span>invented or recombined references flagged, in a separate test of 300 references</span></div>
+		</div>
+		<p class="section-lead">Run of {{ validation.date }}, Starbuck {{ validation.version }}, against the live services. The validation set is small and the author built it; books, humanities and works in Portuguese are harder to confirm. <a href="/validation/">The tests and their limits</a>.</p>
+	</div>
+</section>
+
+<section class="plate colophon">
+	<div class="wrap plate-mark">
+		<blockquote>
+			<p>"I will have no man in my boat," said Starbuck, "who is not afraid of a whale."</p>
+			<footer>Herman Melville, <i>Moby-Dick</i>, chapter 26</footer>
+		</blockquote>
+	</div>
+</section>

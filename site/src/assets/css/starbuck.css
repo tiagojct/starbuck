@@ -1,0 +1,85 @@
+/* Starbuck website: the same plate as the Sub-Sub site (site.css, copied from it), with one
+   change of wash. Sub-Sub links in Prussian blue; Starbuck is the checker, so it links in sap
+   green, the colour Sub-Sub gives to what is checked. The four results take the four washes:
+   Fail madder, Check gamboge, Note Prussian blue, Pass sap. */
+
+:root {
+	--prussian: #2c5d87;
+	--prussian-soft: #d8e2eb;
+	--accent: #4f6a2e;
+	--accent-soft: #dfe7d2;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--prussian: #86b4da;
+		--prussian-soft: #1e3042;
+		--accent: #a3c078;
+		--accent-soft: #253220;
+	}
+}
+:root[data-theme="dark"] {
+	--prussian: #86b4da;
+	--prussian-soft: #1e3042;
+	--accent: #a3c078;
+	--accent-soft: #253220;
+}
+
+/* ---------------------------------------------------------------- results */
+
+.v { display: inline-block; min-width: 4.6em; padding: 0 0.35rem; border: 1px solid currentColor; font-family: var(--sans);
+	font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; text-align: center; text-transform: uppercase; white-space: nowrap; }
+.v.fail { color: var(--librarian); background: var(--librarian-soft); }
+.v.check { color: var(--gamboge); background: var(--gamboge-soft); border-style: dashed; }
+.v.note { color: var(--prussian); background: var(--prussian-soft); border-style: dotted; }
+.v.pass { color: var(--sap); background: var(--sap-soft); }
+.v.none { color: var(--muted); border-style: dotted; }
+
+/* The report in Plate I */
+.sp-summary { display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; margin: 0; font-family: var(--sans); font-size: 0.8rem; color: var(--muted); }
+.sp-ref { border: 1px solid var(--rule-strong); }
+.sp-ref p { margin: 0; }
+.sp-ref-head { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 0.76rem; }
+.sp-ref-body { padding: 0.35rem 0.6rem 0.45rem; font-family: var(--serif); font-size: 0.9rem; }
+.sp-ref-body .act { display: block; margin-top: 0.2rem; font-style: italic; color: var(--muted); font-size: 0.86rem; }
+.sp-diff { padding: 0.35rem 0.6rem; border: 1px solid var(--rule-strong); font-family: var(--mono); font-size: 0.74rem; line-height: 1.55; overflow-x: auto; white-space: pre; }
+.sp-diff .add, .sp-diff .rem { padding: 0; }
+[data-part="1"] { --wash: var(--librarian-soft); }
+[data-part="2"] { --wash: var(--gamboge-soft); }
+[data-part="3"] { --wash: var(--prussian-soft); }
+[data-part="4"] { --wash: var(--prussian-soft); }
+[data-part="5"] { --wash: var(--sap-soft); }
+
+/* Levels on the home page */
+.levels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 1.6rem 0 0; padding: 0; list-style: none; border: 1px solid var(--rule-strong); }
+.levels li { padding: 1rem 1.1rem 1.1rem; border-left: 1px solid var(--rule); }
+.levels li:first-child { border-left: 0; }
+.levels .lv { font-family: var(--sans); font-size: 0.78rem; color: var(--muted); }
+.levels h3 { margin: 0.2rem 0 0.4rem; }
+.levels p { margin: 0; font-size: 0.95rem; }
+.levels .opt { border-style: dashed; }
+.levels + .section-lead { margin-top: 1.2rem; }
+@media (max-width: 900px) {
+	.levels { grid-template-columns: 1fr 1fr; }
+	.levels li:nth-child(3) { border-left: 0; }
+	.levels li:nth-child(n + 3) { border-top: 1px solid var(--rule); }
+}
+@media (max-width: 560px) {
+	.levels { grid-template-columns: 1fr; }
+	.levels li { border-left: 0; }
+	.levels li + li { border-top: 1px solid var(--rule); }
+}
+
+/* Validation numbers */
+.figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+.figures div { padding: 0.9rem 1rem; border: 1px solid var(--rule-strong); background: var(--raised); }
+.figures b { display: block; font-family: var(--serif); font-size: 2rem; font-weight: 500; line-height: 1.1; }
+.figures span { display: block; margin-top: 0.25rem; font-family: var(--sans); font-size: 0.85rem; color: var(--muted); }
+@media (max-width: 640px) { .figures { grid-template-columns: 1fr; } }
+
+/* The link to Sub-Sub */
+.sibling { padding-left: 0.7rem; border-left: 2px solid var(--prussian); }
+.sibling a { color: var(--prussian); }
+.sibling-link { color: var(--prussian); }
+.pair-box { padding: 1.1rem 1.2rem; border: 1px solid var(--prussian); background: color-mix(in srgb, var(--prussian-soft) 45%, transparent); }
+.pair-box h2, .pair-box h3 { margin-top: 0; }
+.pair-box a { color: var(--prussian); }

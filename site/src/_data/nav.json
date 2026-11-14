@@ -1,0 +1,9 @@
+[
+  { "url": "/guide/", "label": "Guide" },
+  { "url": "/how-it-checks/", "label": "How it checks" },
+  { "url": "/sub-sub/", "label": "With Sub-Sub" },
+  { "url": "/automate/", "label": "Automate" },
+  { "url": "/validation/", "label": "Validation" },
+  { "url": "/privacy/", "label": "Privacy" },
+  { "url": "/changelog/", "label": "Changes" }
+]

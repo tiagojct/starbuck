@@ -25,6 +25,8 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://starbuck.tiagojacinto.eu"
+Documentation = "https://starbuck.tiagojacinto.eu/guide/"
 Repository = "https://github.com/tiagojct/starbuck"
 Issues = "https://github.com/tiagojct/starbuck/issues"
 

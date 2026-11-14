@@ -5,11 +5,12 @@ type: other
 status: active
 build: actions
 deploy_target: external
-deploy_method: GitHub releases
-url: ""
-host: ""
+deploy_method: GitHub releases (PyPI); site on rokovoko (site/scripts/deploy.sh)
+url: https://starbuck.tiagojacinto.eu
+host: starbuck.tiagojacinto.eu
 build_command: ""
 artifact: other
-remote_path: ""
+remote_path: /opt/vps/caddy/srv/starbuck.tiagojacinto.eu
 service: ""
-checks: []
+checks:
+  - curl -fsS -o /dev/null https://starbuck.tiagojacinto.eu

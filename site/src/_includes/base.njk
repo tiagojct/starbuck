@@ -1,0 +1,133 @@
+{%- set pt = lang == "pt-PT" -%}
+{%- set home = "/pt/" if pt else "/" -%}
+{%- set L = strings.pt if pt else strings.en -%}
+<!doctype html>
+<html lang="{{ lang or 'en' }}">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{% if title and title != site.title %}{{ title }} · {{ site.title }}{% else %}{{ site.title }}: {{ L.tagline }}{% endif %}</title>
+	<meta name="description" content="{{ description or site.description }}">
+	<link rel="canonical" href="{{ site.url }}{{ page.url }}">
+	{%- if alt %}
+	<link rel="alternate" hreflang="{{ 'en' if pt else 'pt-PT' }}" href="{{ site.url }}{{ alt }}">
+	<link rel="alternate" hreflang="{{ 'pt-PT' if pt else 'en' }}" href="{{ site.url }}{{ page.url }}">
+	<link rel="alternate" hreflang="x-default" href="{{ site.url }}{{ alt if pt else page.url }}">
+	{%- endif %}
+	<meta name="color-scheme" content="light dark">
+	<meta name="theme-color" content="#e9ece6" media="(prefers-color-scheme: light)">
+	<meta name="theme-color" content="#12171c" media="(prefers-color-scheme: dark)">
+	<meta property="og:title" content="{{ title or site.title }}">
+	<meta property="og:description" content="{{ description or site.description }}">
+	<meta property="og:url" content="{{ site.url }}{{ page.url }}">
+	<meta property="og:type" content="website">
+	<meta property="og:locale" content="{{ 'pt_PT' if pt else 'en_GB' }}">
+	{%- if bodyClass == "home" %}
+	<script type="application/ld+json">{{ { "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Starbuck", "applicationCategory": "ResearchApplication", "operatingSystem": "macOS, Windows, Linux", "softwareVersion": release.version, "license": "https://opensource.org/licenses/MIT", "url": site.url, "description": description or site.description, "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }, "author": { "@type": "Person", "name": "Tiago Jacinto", "affiliation": { "@type": "CollegeOrUniversity", "name": "Faculdade de Medicina da Universidade do Porto" } }, "codeRepository": site.repo, "isRelatedTo": { "@type": "SoftwareApplication", "name": "Sub-Sub", "url": site.subsub } } | dump | safe }}</script>
+	{%- endif %}
+	<link rel="icon" href="/assets/favicon.svg?v={{ assetVersion }}" type="image/svg+xml">
+	<link rel="preload" href="/assets/fonts/Literata.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="preload" href="/assets/fonts/AtkinsonHyperlegibleNext.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="stylesheet" href="/assets/css/site.css?v={{ assetVersion }}">
+	<link rel="stylesheet" href="/assets/css/starbuck.css?v={{ assetVersion }}">
+	<script>
+		// Set the theme before the first paint: the saved choice, or the system setting.
+		try {
+			var saved = localStorage.getItem("starbuck-site-theme");
+			if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+		} catch (e) {}
+	</script>
+	<script src="/assets/js/site.js?v={{ assetVersion }}" defer></script>
+</head>
+<body class="{{ bodyClass or 'page' }}">
+	<a class="skip" href="#main">{{ L.skip }}</a>
+
+	<header class="site-header">
+		<div class="wrap header-inner">
+			<a class="brand" href="{{ home }}">
+				<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6z"/><path d="M8.8 9h6.4M8.8 12h4"/><path d="m9.2 16 2 2 3.8-4.2"/></svg>
+				<span>Starbuck</span>
+			</a>
+			<nav class="nav" id="site-nav" aria-label="{{ L.mainMenu }}">
+				<ul>
+				{%- for item in nav %}
+					<li><a href="{{ item.url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.label }}</a></li>
+				{%- endfor %}
+				</ul>
+			</nav>
+			<div class="header-tools">
+				{%- if alt %}
+				<a class="tool-link lang-link" href="{{ alt }}" hreflang="{{ 'en' if pt else 'pt-PT' }}" lang="{{ 'en' if pt else 'pt-PT' }}" title="{{ 'Read this page in English' if pt else 'Ler esta página em português' }}">{{ "EN" if pt else "PT" }}</a>
+				{%- endif %}
+				<a class="tool-link sibling-link" href="{{ site.subsub }}{{ '/pt/' if pt else '/' }}" rel="noopener" title="{{ 'O assistente de investigação para o Zotero' if pt else 'The research assistant for Zotero' }}">Sub-Sub</a>
+				<a class="tool-link gh-link" href="{{ site.repo }}" rel="noopener">GitHub</a>
+				<button type="button" class="theme-btn menu-btn" id="menu-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="{{ L.menu }}">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+				</button>
+				<button type="button" class="theme-btn" id="theme-toggle" aria-label="{{ L.theme }}">
+					<svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+					<svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	{% if bodyClass == "home" %}
+		<main id="main">
+			{{ content | safe }}
+		</main>
+	{% else %}
+		<main id="main" class="wrap doc">
+			{%- if title and not hideTitle %}
+			<header class="doc-header">
+				<p class="runhead"><span>Starbuck</span>{% if eyebrow %}<span class="mid">{{ eyebrow }}</span>{% endif %}</p>
+				<h1>{{ title }}</h1>
+				{% if lead %}<p class="lead">{{ lead }}</p>{% endif %}
+			</header>
+			{%- endif %}
+			<div class="doc-body">
+				<article class="prose">
+					{{ content | safe }}
+				</article>
+				<aside class="toc" id="toc" hidden>
+					<p class="toc-title">{{ L.onThisPage }}</p>
+					<ol></ol>
+				</aside>
+			</div>
+		</main>
+	{% endif %}
+
+	<footer class="site-footer">
+		<div class="wrap footer-inner">
+			<div class="footer-about">
+				<a class="brand" href="{{ home }}">
+					<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3 3v14H6z"/><path d="M8.8 9h6.4M8.8 12h4"/><path d="m9.2 16 2 2 3.8-4.2"/></svg>
+					<span>Starbuck</span>
+				</a>
+				<p>{{ L.footerAbout | safe }}</p>
+				<p class="sibling">{{ L.sibling | safe }}</p>
+				<p class="cite"><span class="cite-label">{{ L.citeAs }}</span> Jacinto T. Starbuck: {{ L.citeTitle }} [software]. <a href="{{ site.pypi }}" rel="noopener">{{ L.version }} {{ release.version }}</a>. Porto: Faculdade de Medicina da Universidade do Porto; 2026. {{ L.licence }}</p>
+			</div>
+			<nav class="footer-nav" aria-label="{{ L.footer }}">
+				{%- for col in [nav.slice(0, 4), nav.slice(4)] %}
+				<ul>
+					{%- for item in col %}
+					<li><a href="{{ item.url }}">{{ item.label }}</a></li>
+					{%- endfor %}
+				</ul>
+				{%- endfor %}
+				<ul>
+					<li><a href="{{ site.subsub }}" rel="noopener">Sub-Sub</a></li>
+					<li><a href="{{ site.repo }}" rel="noopener">GitHub</a></li>
+					<li><a href="{{ site.pypi }}" rel="noopener">PyPI</a></li>
+					<li><a href="{{ site.repo }}/issues" rel="noopener">{{ L.report }}</a></li>
+				</ul>
+			</nav>
+		</div>
+		<div class="wrap footer-versions">
+			<span>Starbuck {{ release.version }}</span>
+			<span><a href="{{ site.subsub }}/install/#reference-checks-starbuck" rel="noopener">{{ "No Sub-Sub" if pt else "In Sub-Sub" }}</a></span>
+		</div>
+	</footer>
+</body>
+</html>

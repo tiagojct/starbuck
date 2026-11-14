@@ -1,5 +1,8 @@
 # Starbuck
 
+Website: [starbuck.tiagojacinto.eu](https://starbuck.tiagojacinto.eu). Starbuck is the
+reference checker of [Sub-Sub](https://subsub.tiagojacinto.eu) and also works on its own.
+
 Reference-integrity checks for manuscripts. Starbuck reads a Word, LaTeX,
 Markdown or Quarto manuscript with its references and checks each cited
 reference against public scholarly records. It writes a Quarto report that renders to HTML or Word.

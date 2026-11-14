@@ -1,0 +1,34 @@
+{
+  "en": {
+    "tagline": "reference checks for manuscripts",
+    "mainMenu": "Main",
+    "menu": "Menu",
+    "theme": "Switch theme",
+    "skip": "Skip to content",
+    "onThisPage": "On this page",
+    "footer": "Footer",
+    "footerAbout": "Reference checks for manuscripts. Open source, MIT licence. Made by Tiago Jacinto at the Faculty of Medicine of the University of Porto.",
+    "sibling": "Starbuck is the reference checker of <a href=\"https://subsub.tiagojacinto.eu\">Sub-Sub</a>, the research assistant for Zotero. It also works on its own.",
+    "citeAs": "Cite as",
+    "citeTitle": "reference-integrity checks for manuscripts",
+    "version": "Version",
+    "licence": "MIT licence.",
+    "report": "Report a problem"
+  },
+  "pt": {
+    "tagline": "verificação de referências para manuscritos",
+    "mainMenu": "Menu principal",
+    "menu": "Menu",
+    "theme": "Mudar tema",
+    "skip": "Saltar para o conteúdo",
+    "onThisPage": "Nesta página",
+    "footer": "Rodapé",
+    "footerAbout": "Verificação de referências para manuscritos. Código aberto, licença MIT. Feito por Tiago Jacinto na Faculdade de Medicina da Universidade do Porto.",
+    "sibling": "O Starbuck é o verificador de referências do <a href=\"https://subsub.tiagojacinto.eu/pt/\">Sub-Sub</a>, o assistente de investigação para o Zotero. Também funciona sozinho.",
+    "citeAs": "Citar como",
+    "citeTitle": "reference-integrity checks for manuscripts",
+    "version": "Versão",
+    "licence": "Licença MIT.",
+    "report": "Comunicar um problema"
+  }
+}

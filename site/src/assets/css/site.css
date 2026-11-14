@@ -1,0 +1,795 @@
+/* Sub-Sub website: the plate.
+   An engraved natural-history plate: a grey-green sheet, a lighter plate field inside its mark,
+   copperplate ink, and four washes as the only colour (Prussian blue for the Researcher, madder
+   for the Librarian, sap green for what is applied or checked, gamboge for a preview).
+   State is drawn by line: solid, dashed, dotted, struck.
+   Literata for text (true italics, small caps), Atkinson Hyperlegible Next for controls,
+   Atkinson Hyperlegible Mono for commands. All three are served from this site. */
+
+@font-face { font-family: "Literata"; src: url("../fonts/Literata.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Literata"; src: url("../fonts/Literata-Italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible Next"; src: url("../fonts/AtkinsonHyperlegibleNext.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible Mono"; src: url("../fonts/AtkinsonHyperlegibleMono.woff2") format("woff2"); font-weight: 400 600; font-display: swap; }
+
+/* ---------------------------------------------------------------- tokens */
+
+:root {
+	--serif: "Literata", Georgia, "Times New Roman", serif;
+	--sans: "Atkinson Hyperlegible Next", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+	--bg: #e9ece6; /* the sheet */
+	--surface: #dfe3dc; /* a sunk field: inline code, table heads */
+	--raised: #f4f5f1; /* the plate field, inside the plate mark */
+	--text: #16202a; /* copperplate ink */
+	--muted: #44505b;
+	--faint: #5d6870;
+	--rule: #c6ccc6; /* a fine engraved line */
+	--rule-strong: #7d878e; /* the plate mark, field borders */
+	--accent: #2c5d87; /* Prussian blue: the Researcher, links */
+	--accent-soft: #d8e2eb;
+	--librarian: #a8432d; /* madder */
+	--librarian-soft: #f0ddd6;
+	--sap: #4f6a2e; /* applied, checked */
+	--sap-soft: #dfe7d2;
+	--gamboge: #86601a; /* a preview */
+	--gamboge-soft: #f2e5c6;
+	--term-bg: #16202a;
+	--term-text: #e3e7e3;
+	--term-dim: #8e9aa1;
+	--term-acc: #86b4da;
+	--term-add: #a3c078;
+	--term-rem: #e6866d;
+
+	--wrap: 76rem;
+	--radius: 2px;
+}
+
+/* Dark: the steel plate itself. A blue-black ground, pale engraved line, brighter washes. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #12171c;
+		--surface: #0d1115;
+		--raised: #192128;
+		--text: #dce1de;
+		--muted: #a6b0b3;
+		--faint: #8d989d;
+		--rule: #2c363f;
+		--rule-strong: #66727c;
+		--accent: #86b4da;
+		--accent-soft: #1e3042;
+		--librarian: #e6866d;
+		--librarian-soft: #3d2620;
+		--sap: #a3c078;
+		--sap-soft: #253220;
+		--gamboge: #e2b45a;
+		--gamboge-soft: #3a3019;
+		--term-bg: #0b0f13;
+	}
+}
+
+:root[data-theme="dark"] {
+	--bg: #12171c;
+	--surface: #0d1115;
+	--raised: #192128;
+	--text: #dce1de;
+	--muted: #a6b0b3;
+	--faint: #8d989d;
+	--rule: #2c363f;
+	--rule-strong: #66727c;
+	--accent: #86b4da;
+	--accent-soft: #1e3042;
+	--librarian: #e6866d;
+	--librarian-soft: #3d2620;
+	--sap: #a3c078;
+	--sap-soft: #253220;
+	--gamboge: #e2b45a;
+	--gamboge-soft: #3a3019;
+	--term-bg: #0b0f13;
+}
+
+/* Screenshots exist in both themes; show the one that matches. */
+.only-dark { display: none; }
+:root[data-theme="dark"] .only-dark { display: block; }
+:root[data-theme="dark"] .only-light { display: none; }
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .only-dark { display: block; }
+	:root:not([data-theme="light"]) .only-light { display: none; }
+}
+
+/* ---------------------------------------------------------------- base */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+	-webkit-text-size-adjust: 100%;
+	scroll-padding-top: 5rem;
+	scrollbar-color: var(--rule-strong) var(--bg);
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--serif);
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	font-variant-numeric: oldstyle-nums proportional-nums;
+	caret-color: var(--accent);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 2px; }
+img { max-width: 100%; height: auto; display: block; }
+code, pre, kbd { font-family: var(--mono); font-variant-numeric: normal; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+::selection { background: var(--accent-soft); color: var(--text); }
+[hidden] { display: none !important; }
+button { font: inherit; }
+
+.wrap { width: min(100% - 2.5rem, var(--wrap)); margin-inline: auto; }
+
+/* Small capitals for plate and figure numbers. */
+.sc { font-variant-caps: small-caps; letter-spacing: 0.04em; font-style: normal; }
+/* The name breaks nowhere, least of all at its hyphen. */
+.nobr { white-space: nowrap; }
+
+.skip {
+	position: absolute;
+	left: 1rem;
+	top: -3rem;
+	padding: 0.5rem 0.9rem;
+	background: var(--text);
+	color: var(--bg);
+	font-family: var(--sans);
+	z-index: 50;
+}
+.skip:focus { top: 1rem; }
+
+/* The running head of a plate or a page: what it is on the left, its number on the right. */
+.runhead {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 0.5rem 1.5rem;
+	flex-wrap: wrap;
+	margin: 0 0 clamp(1.5rem, 3vw, 2.25rem);
+	padding: 0 0 0.35rem;
+	border-bottom: 1px solid var(--text);
+	font-family: var(--serif);
+	font-size: 1.02rem;
+	font-weight: 400;
+	line-height: 1.3;
+	font-variant-caps: all-small-caps;
+	font-variant-numeric: oldstyle-nums;
+	letter-spacing: 0.08em;
+	color: var(--muted);
+}
+.runhead .mid { font-style: italic; font-variant-caps: normal; letter-spacing: 0; text-transform: none; }
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.6rem 1.1rem;
+	border-radius: var(--radius);
+	background: var(--text);
+	color: var(--bg);
+	font-family: var(--sans);
+	font-weight: 600;
+	font-size: 0.95rem;
+	text-decoration: none;
+	border: 1px solid var(--text);
+}
+.button:hover { background: var(--accent); border-color: var(--accent); }
+.button.quiet { background: transparent; color: var(--text); border-color: var(--rule-strong); }
+.button.quiet:hover { border-color: var(--text); }
+
+/* ---------------------------------------------------------------- header */
+
+.site-header {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background: var(--bg);
+	border-bottom: 1px solid var(--rule-strong);
+}
+.header-inner { display: flex; align-items: center; gap: 1.75rem; height: 3.75rem; }
+
+.brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	color: var(--text);
+	text-decoration: none;
+	font-family: var(--serif);
+	font-weight: 600;
+	font-size: 1.22rem;
+	letter-spacing: -0.005em;
+	white-space: nowrap;
+}
+.brand .mark { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.brand .hyphen { color: var(--accent); }
+
+.nav { flex: 1; min-width: 0; font-family: var(--sans); }
+.nav ul { display: flex; gap: 0.1rem; list-style: none; margin: 0; padding: 0; overflow-x: auto; scrollbar-width: none; }
+.nav ul::-webkit-scrollbar { display: none; }
+.nav a {
+	display: block;
+	padding: 0.35rem 0.55rem;
+	color: var(--muted);
+	text-decoration: none;
+	font-size: 0.9rem;
+	white-space: nowrap;
+}
+.nav a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 0.4em; }
+.nav a[aria-current="page"] { color: var(--text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.4em; }
+
+.header-tools { display: flex; align-items: center; gap: 0.25rem; font-family: var(--sans); }
+.tool-link { color: var(--muted); text-decoration: none; font-size: 0.9rem; padding: 0.35rem 0.55rem; }
+.tool-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 0.4em; }
+.theme-btn {
+	display: inline-grid;
+	place-items: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--muted);
+	cursor: pointer;
+}
+.theme-btn:hover { color: var(--text); }
+.theme-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* The button shows the theme it switches to. */
+.theme-btn .i-sun { display: none; }
+:root[data-theme="dark"] .theme-btn .i-sun { display: block; }
+:root[data-theme="dark"] .theme-btn .i-moon { display: none; }
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .theme-btn .i-sun { display: block; }
+	:root:not([data-theme="light"]) .theme-btn .i-moon { display: none; }
+}
+
+/* ---------------------------------------------------------------- plates (home) */
+
+.plate { padding: clamp(1rem, 2.5vw, 2rem) 0 0; }
+.plate:last-of-type { padding-bottom: clamp(1rem, 2.5vw, 2rem); }
+/* The plate mark: the edge the copper plate pressed into the sheet. Inside it, the lighter field. */
+.plate-mark {
+	background: var(--raised);
+	border: 1px solid var(--rule-strong);
+	padding: clamp(1.1rem, 3.2vw, 2.75rem);
+}
+
+.home h2 {
+	font-family: var(--serif);
+	font-weight: 500;
+	font-size: clamp(1.65rem, 3vw, 2.35rem);
+	line-height: 1.12;
+	letter-spacing: -0.012em;
+	margin: 0 0 1.25rem;
+	max-width: 28ch;
+	text-wrap: balance;
+}
+.home h3 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.35rem; }
+
+/* Plate I: the legend on the left, the specimen on the right. */
+.plate-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; }
+@media (min-width: 62rem) {
+	.plate-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: clamp(2rem, 4vw, 4rem); align-items: start; }
+}
+.legend h1 {
+	font-family: var(--serif);
+	font-weight: 500;
+	font-size: clamp(2.35rem, 4.6vw, 3.75rem);
+	line-height: 1.03;
+	letter-spacing: -0.02em;
+	margin: 0 0 1.25rem;
+	text-wrap: balance;
+}
+.legend .lead { font-size: 1.12rem; line-height: 1.55; color: var(--muted); margin: 0 0 1.75rem; max-width: 36rem; text-wrap: pretty; }
+.legend .newcomer { margin: 1.5rem 0 0; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: 0.98rem; color: var(--muted); max-width: 36rem; }
+.hero-alt { margin: 1rem 0 0; font-size: 0.95rem; color: var(--muted); max-width: 36rem; }
+
+/* The install command: the one thing to do on this page. */
+.install { max-width: 36rem; }
+.install-tabs { display: flex; gap: 1.4rem; border-bottom: 1px solid var(--rule-strong); font-family: var(--sans); }
+.install-tabs button {
+	font-size: 0.88rem;
+	font-weight: 500;
+	color: var(--muted);
+	background: none;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	padding: 0.45rem 0;
+	margin-bottom: -1px;
+	cursor: pointer;
+}
+.install-tabs button:hover { color: var(--text); }
+.install-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+.install-panel { padding-top: 0.85rem; }
+.install-panel p { margin: 0.65rem 0 0; font-size: 0.92rem; color: var(--muted); }
+.install-panel { position: relative; }
+.install-panel pre.cmd { position: static; margin: 0; white-space: pre-wrap; word-break: normal; overflow-wrap: anywhere; font-size: 0.82rem; padding-right: 1rem; }
+/* The copy button sits at the end of the tab row, above the command. */
+.install-panel .copy-btn { top: -2.15rem; right: 0; color: var(--text); border-color: var(--rule-strong); font-weight: 500; }
+.install-panel .copy-btn:hover { color: var(--text); border-color: var(--text); }
+.install-panel .copy-btn.copied { color: var(--sap); border-color: var(--sap); }
+.install-panel code:not(pre code) { font-size: 0.88em; }
+
+/* The specimen: Sub-Sub in the browser, drawn in line. Figure numbers sit in the right margin;
+   site.js draws their leader lines. Without the script, each part carries its number. */
+.specimen-fig { margin: 0; }
+.specimen {
+	position: relative;
+	padding-right: 2.6rem;
+	font-family: var(--sans);
+	font-size: 0.84rem;
+	line-height: 1.45;
+	font-variant-numeric: lining-nums;
+}
+.sp-window { border: 1px solid var(--text); background: var(--raised); }
+/* An engraved tone: fine horizontal hatching on the bar. */
+.sp-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.5rem 0.7rem;
+	border-bottom: 1px solid var(--text);
+	background: repeating-linear-gradient(to bottom, transparent 0 2px, color-mix(in srgb, var(--text) 9%, transparent) 2px 3px);
+}
+.sp-brand { white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem; font-family: var(--serif); font-weight: 600; font-size: 0.95rem; }
+.sp-brand svg { width: 15px; height: 15px; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sp-modes { display: inline-flex; border: 1px solid var(--rule-strong); background: var(--raised); }
+.sp-modes span { padding: 0.15rem 0.55rem; color: var(--muted); }
+.sp-modes span:not(.on) { color: var(--librarian); }
+.sp-modes .on { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 -2px 0 var(--accent); font-weight: 600; }
+.sp-body { padding: 0.9rem 0.9rem 1rem; display: grid; gap: 0.7rem; }
+.sp-ask { justify-self: end; margin: 0; padding: 0.3rem 0.6rem; border: 1px solid var(--rule-strong); font-family: var(--mono); font-size: 0.8rem; }
+.sp-note { border: 1px solid var(--rule-strong); }
+.sp-path { margin: 0; padding: 0.3rem 0.6rem; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 0.76rem; color: var(--muted); }
+.sp-fm { margin: 0; padding: 0.45rem 0.6rem 0.2rem; font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.sp-ev { color: var(--text); border-bottom: 2px solid var(--sap); }
+.sp-title { margin: 0; padding: 0.35rem 0.6rem 0; font-family: var(--serif); font-weight: 500; font-size: 0.98rem; }
+.sp-quote { margin: 0.45rem 0.6rem 0; padding: 0.1rem 0 0.1rem 0.7rem; border-left: 2px solid var(--accent); font-family: var(--serif); font-size: 0.92rem; }
+.sp-page { color: var(--accent); text-decoration: underline; text-underline-offset: 0.18em; white-space: nowrap; }
+.sp-q { margin: 0.35rem 0.6rem 0.6rem; padding-left: 0.7rem; font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 0.92rem; }
+.sp-preview { padding: 0.6rem 0.7rem 0.7rem; border: 1px dashed var(--gamboge); background: color-mix(in srgb, var(--gamboge-soft) 55%, transparent); }
+.sp-preview p { margin: 0; }
+.sp-h { font-family: var(--serif); font-weight: 600; font-size: 0.98rem; margin-bottom: 0.3rem !important; }
+.sp-h .sc { font-weight: 400; color: var(--gamboge); margin-right: 0.35rem; }
+.sp-row { font-family: var(--mono); font-size: 0.76rem; }
+.add, .rem { padding: 0 0.25rem; white-space: nowrap; }
+.add { color: var(--sap); background: var(--sap-soft); }
+.rem { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.sp-actions { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.5rem !important; }
+.sp-btn { display: inline-block; padding: 0.15rem 0.7rem; border: 1px solid var(--rule-strong); background: var(--raised); }
+.sp-btn.yes { background: var(--text); color: var(--raised); border-color: var(--text); }
+.sp-tool { margin: 0; display: flex; align-items: center; gap: 0.5rem; padding-top: 0.55rem; border-top: 1px solid var(--sap); }
+.sp-tool .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--sap); }
+.sp-applied { color: var(--sap); }
+.sp-tool .sp-btn { margin-left: auto; }
+
+/* Figure marks on the parts: a numeral without the script, a pin with it. */
+.pin { font-family: var(--serif); font-style: italic; font-size: 0.95rem; color: var(--text); margin-left: 0.3rem; }
+.pin::after { content: attr(data-fig); }
+.drawn .pin { display: inline-block; width: 0.42rem; height: 0.42rem; margin-left: 0.35rem; border: 1px solid var(--text); border-radius: 50%; background: var(--raised); vertical-align: 0.1em; }
+.drawn .pin::after { content: none; }
+.margin { position: absolute; top: 0; right: 0; bottom: 0; width: 2rem; }
+.fig-no {
+	position: absolute;
+	right: 0;
+	transform: translateY(-50%);
+	font-family: var(--serif);
+	font-style: italic;
+	font-size: 1.1rem;
+	line-height: 1;
+	padding: 0.2rem 0.15rem 0.2rem 0.3rem;
+	color: var(--text);
+	cursor: pointer;
+}
+.leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.leaders path { fill: none; stroke: var(--rule-strong); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 0; }
+
+/* The signature: point at a figure and its line is drawn in ink, its part is washed,
+   and the rest of the plate rests in plate tone. */
+.specimen [data-part] { transition: opacity 0.22s ease, background-color 0.22s ease; }
+.specimen[data-focus] [data-part] { opacity: 0.3; }
+.specimen[data-focus="1"] [data-part="1"],
+.specimen[data-focus="2"] [data-part="2"],
+.specimen[data-focus="3"] [data-part="3"],
+.specimen[data-focus="4"] [data-part="4"],
+.specimen[data-focus="5"] [data-part="5"] { opacity: 1; background-color: var(--wash); }
+[data-part="1"] { --wash: var(--accent-soft); }
+[data-part="2"], [data-part="5"] { --wash: var(--sap-soft); }
+[data-part="3"] { --wash: var(--accent-soft); }
+[data-part="4"] { --wash: var(--gamboge-soft); }
+.specimen[data-focus] .fig-no { color: var(--faint); }
+.specimen[data-focus="1"] .fig-no[data-fig="1"],
+.specimen[data-focus="2"] .fig-no[data-fig="2"],
+.specimen[data-focus="3"] .fig-no[data-fig="3"],
+.specimen[data-focus="4"] .fig-no[data-fig="4"],
+.specimen[data-focus="5"] .fig-no[data-fig="5"] { color: var(--text); font-weight: 600; }
+.specimen[data-focus="1"] .leaders [data-fig="1"],
+.specimen[data-focus="2"] .leaders [data-fig="2"],
+.specimen[data-focus="3"] .leaders [data-fig="3"],
+.specimen[data-focus="4"] .leaders [data-fig="4"],
+.specimen[data-focus="5"] .leaders [data-fig="5"] { stroke: var(--text); stroke-width: 1.4; animation: draw 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* The caption: what each figure shows, in words. It is also the way to point with the keyboard. */
+.caption { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--rule); }
+.caption > p { margin: 0 0 0.6rem; font-size: 1rem; }
+.figs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.figs button {
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 0.3rem 0.4rem;
+	margin: 0 -0.4rem;
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font-family: var(--serif);
+	font-size: 0.95rem;
+	line-height: 1.45;
+	cursor: pointer;
+}
+.figs button .sc { color: var(--text); }
+.figs button i { color: var(--text); }
+.figs button:hover, .figs button[aria-pressed="true"] { color: var(--text); background: var(--bg); }
+@media (min-width: 40rem) and (max-width: 61.99rem) {
+	.figs { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; }
+}
+
+/* Plate II: the three evidence lines. */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(2rem, 5vw, 4.5rem); align-items: start; }
+.split > div > :last-child { margin-bottom: 0; }
+.section-lead { color: var(--muted); max-width: 42rem; margin: 0 0 1.5rem; }
+.result-points { list-style: none; margin: 1.25rem 0 0; padding: 0; display: grid; gap: 0.85rem; }
+.result-points li { color: var(--muted); padding-left: 1.6rem; position: relative; }
+.result-points li::before { content: counter(list-item, lower-roman) "."; position: absolute; left: 0; font-style: italic; color: var(--faint); }
+.result-points strong { color: var(--text); font-weight: 600; }
+.result-points code { font-size: 0.85em; }
+
+.lines-fig { margin: 0; }
+.evidence-lines { display: grid; border-bottom: 1px solid var(--rule-strong); }
+.ev { position: relative; padding: 0.85rem 0 0.9rem 2.4rem; border-top: 1px solid var(--rule-strong); }
+.ev p { margin: 0; }
+.ev-file { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.ev-field { margin: 0.3rem 0 0.45rem !important; font-family: var(--mono); font-size: 0.9rem; }
+.ev-field span { padding-bottom: 2px; border-bottom: 2px solid var(--text); }
+.ev-full .ev-field span { border-bottom-style: solid; border-color: var(--sap); }
+.ev-abstract .ev-field span { border-bottom-style: dashed; border-color: var(--gamboge); }
+.ev-meta .ev-field span { border-bottom-style: dotted; border-color: var(--muted); }
+.ev-desc { font-size: 0.95rem; color: var(--muted); }
+.ev-no { position: absolute; top: 0.75rem; left: 0; font-style: italic; font-size: 1.15rem; color: var(--text); }
+.lines-fig figcaption, .stages-caption { margin-top: 0.9rem; font-size: 0.95rem; color: var(--muted); }
+.lines-fig figcaption .sc, .stages-caption .sc { color: var(--text); }
+
+/* Plate III: a change, in four stages, joined by one line. */
+.stages { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 clamp(1rem, 2.5vw, 2rem); counter-reset: stage; position: relative; }
+.stages::before { content: ""; position: absolute; left: 0; right: 0; top: 1.05rem; border-top: 1px solid var(--rule-strong); }
+.stage { position: relative; counter-increment: stage; padding-top: 2.6rem; }
+.stage::before {
+	content: counter(stage, lower-roman) ".";
+	position: absolute;
+	top: 0;
+	left: 0;
+	padding-right: 0.6rem;
+	background: var(--raised);
+	font-style: italic;
+	font-size: 1.35rem;
+	line-height: 1.5;
+	color: var(--text);
+}
+.stage h3 { font-family: var(--serif); font-size: 1.12rem; font-weight: 600; margin: 0 0 0.4rem; }
+.stage p { margin: 0; color: var(--muted); font-size: 0.97rem; }
+.stage .mark-line { display: block; height: 0; margin: 0 0 0.8rem; border-top: 2px solid var(--text); width: 3rem; }
+.stage.dry .mark-line { border-top-style: dashed; border-color: var(--gamboge); }
+.stage.decide .mark-line { border-color: var(--text); }
+.stage.record .mark-line { border-color: var(--sap); }
+.stage.ask .mark-line { border-top-width: 1px; border-color: var(--rule-strong); }
+.struck { text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* Students and privacy: two text columns. */
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(2rem, 5vw, 4.5rem); }
+.prose-block p { margin: 0 0 1rem; color: var(--muted); }
+.prose-block p:last-child { margin: 0; }
+.prose-block code, .split code { font-size: 0.85em; background: var(--surface); padding: 0.05em 0.3em; }
+
+/* The colophon: the Extracts, supplied by a Sub-Sub-Librarian. */
+.colophon { padding: clamp(3rem, 7vw, 5.5rem) 0 clamp(3rem, 6vw, 4.5rem); }
+.colophon blockquote { margin: 0 auto; max-width: 44rem; text-align: center; }
+.extracts { margin: 0 0 1.5rem; font-variant-caps: all-small-caps; letter-spacing: 0.14em; font-size: 1.15rem; color: var(--muted); }
+.extracts i { font-variant-caps: normal; letter-spacing: 0; }
+.colophon blockquote p { font-family: var(--serif); font-style: italic; font-size: clamp(1.2rem, 2.2vw, 1.55rem); line-height: 1.5; margin: 0 0 1.25rem; text-wrap: pretty; }
+.colophon footer { font-size: 0.95rem; color: var(--muted); }
+.colophon footer a { margin-left: 0.5rem; }
+
+/* ---------------------------------------------------------------- wide pages built from sections (How it works) */
+
+.page-head { padding: clamp(2.5rem, 6vw, 4.5rem) 0 clamp(1.5rem, 3vw, 2.5rem); }
+.page-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(2.1rem, 4.6vw, 3.2rem); line-height: 1.06; letter-spacing: -0.018em; margin: 0 0 1rem; text-wrap: balance; }
+.page-head .lead { font-size: clamp(1.05rem, 1.6vw, 1.2rem); color: var(--muted); max-width: 42rem; margin: 0; }
+.section { padding: clamp(2.5rem, 6vw, 4.5rem) 0; }
+.band { padding: clamp(2.5rem, 6vw, 4.5rem) 0; background: var(--raised); border-block: 1px solid var(--rule-strong); }
+
+.modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.mode { border: 1px solid var(--rule-strong); border-top: 3px solid var(--accent); background: var(--raised); padding: 1.4rem 1.5rem 1.3rem; display: flex; flex-direction: column; }
+.mode.librarian { border-top-color: var(--librarian); }
+.mode h3 { font-family: var(--serif); font-size: 1.3rem; font-weight: 600; }
+.mode.librarian h3 { color: var(--librarian); }
+.mode.researcher h3 { color: var(--accent); }
+.mode-lead { margin: 0 0 1rem; color: var(--muted); font-style: italic; }
+.mode ul { margin: 0 0 1.25rem; padding-left: 1.1rem; display: grid; gap: 0.45rem; font-size: 0.98rem; }
+.mode li::marker { color: var(--faint); }
+.mode-cmds { margin: auto 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.mode code, .modes code { font-size: 0.8rem; padding: 0.1rem 0.4rem; background: var(--surface); color: var(--text); }
+
+.terminal {
+	margin: 0;
+	background: var(--term-bg);
+	color: var(--term-text);
+	padding: 1.4rem 1.5rem;
+	font-family: var(--mono);
+	font-size: clamp(0.68rem, 1.1vw, 0.8rem);
+	line-height: 1.6;
+	overflow-x: auto;
+	border: 1px solid var(--rule-strong);
+}
+.terminal pre { margin: 0; font: inherit; white-space: pre; }
+.t-box { position: relative; width: max-content; min-width: 100%; margin-top: 1.4rem; border: 1px dashed #4a5560; border-left: 0; border-right: 0; padding: 1rem 0 1.4rem; }
+.t-box-title, .t-box-keys { position: absolute; background: var(--term-bg); padding: 0 0.5rem; }
+.t-box-title { top: -0.8em; left: 0.75rem; color: var(--term-dim); }
+.t-box-keys { bottom: -0.8em; right: 0.75rem; }
+.t-on { color: var(--term-bg); background: var(--term-acc); padding: 0 0.4rem; }
+.t-dim { color: var(--term-dim); }
+.t-acc { color: var(--term-acc); }
+.t-add { color: var(--term-add); }
+.t-rem { color: var(--term-dim); text-decoration: line-through; }
+
+.needs { margin: 0; display: grid; border-top: 1px solid var(--text); }
+.needs > div { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: 1.5rem; padding: 1rem 0; border-bottom: 1px solid var(--rule-strong); }
+.needs dt { font-weight: 600; }
+.needs dd { margin: 0; color: var(--muted); }
+
+/* The diagram: inline SVG, coloured with the page tokens so it follows the theme. */
+.diagram { margin: 0; }
+.diagram-scroll { overflow-x: auto; border: 1px solid var(--rule-strong); background: var(--raised); padding: 1.25rem; }
+.diagram figcaption { margin-top: 0.75rem; font-size: 0.95rem; color: var(--muted); font-style: italic; }
+.dg { display: block; width: 100%; min-width: 860px; height: auto; font-family: var(--sans); }
+.dg .box { fill: var(--raised); stroke: var(--text); stroke-width: 1; }
+.dg .box.strong { stroke: var(--text); stroke-width: 1.4; }
+.dg .soft { fill: var(--bg); stroke: var(--rule-strong); }
+.dg .dash { stroke-dasharray: 5 4; }
+.dg text { fill: var(--text); }
+.dg .t { font-size: 14px; font-weight: 600; }
+.dg .s { font-size: 12px; fill: var(--muted); font-weight: 400; }
+.dg .f { fill: var(--faint); }
+.dg .m { font-family: var(--mono); font-size: 12px; }
+.dg .m.t { font-size: 14px; }
+.dg .cap { font-family: var(--serif); font-size: 14px; font-weight: 500; font-style: italic; fill: var(--text); }
+.dg .cap .sect { fill: var(--faint); font-weight: 400; }
+.dg .cap.acc { fill: var(--text); font-weight: 600; }
+.dg .pill.lib { fill: var(--librarian-soft); stroke: var(--librarian); }
+.dg .pill.res { fill: var(--accent-soft); stroke: var(--accent); }
+.dg text.lib { fill: var(--librarian); }
+.dg text.res { fill: var(--accent); }
+.dg .ln { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+.dg .ln.w { stroke-width: 2; }
+.dg .ln.lib { stroke: var(--librarian); }
+.dg .ln.res { stroke: var(--accent); }
+.dg .ah { fill: var(--muted); }
+.dg .ah.lib { fill: var(--librarian); }
+.dg .ah.res { fill: var(--accent); }
+
+/* What people say (shown only when there is something to show). */
+.trust { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.25rem; }
+.trust figure { margin: 0; padding: 1.25rem; border-top: 1px solid var(--text); }
+.trust blockquote { margin: 0 0 0.75rem; font-style: italic; font-size: 1.1rem; }
+.trust figcaption { font-size: 0.92rem; color: var(--muted); }
+.trust-facts { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; margin: 1.5rem 0 0; padding: 0; list-style: none; font-size: 1.1rem; }
+
+/* ---------------------------------------------------------------- documentation pages */
+
+.doc { padding: clamp(2rem, 5vw, 3.5rem) 0 4rem; }
+.doc-header { max-width: 46rem; margin-bottom: 2.5rem; }
+.doc-header h1 {
+	font-family: var(--serif);
+	font-weight: 500;
+	font-size: clamp(2.1rem, 4.6vw, 3rem);
+	line-height: 1.06;
+	letter-spacing: -0.018em;
+	margin: 0;
+	text-wrap: balance;
+}
+.doc-header .lead { font-size: 1.15rem; color: var(--muted); margin: 1rem 0 0; text-wrap: pretty; }
+
+.doc-body { display: grid; grid-template-columns: minmax(0, 46rem) minmax(0, 1fr); gap: 4rem; align-items: start; }
+
+.toc { position: sticky; top: 5.5rem; font-family: var(--sans); font-size: 0.86rem; border-left: 1px solid var(--rule-strong); padding-left: 1.1rem; max-height: calc(100vh - 7rem); overflow-y: auto; }
+.toc-title { margin: 0 0 0.6rem; font-family: var(--serif); font-size: 1rem; font-variant-caps: all-small-caps; letter-spacing: 0.08em; color: var(--muted); }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.toc a { display: block; padding: 0.2rem 0; color: var(--muted); text-decoration: none; line-height: 1.35; }
+.toc a:hover { color: var(--text); text-decoration: underline; }
+.toc a.active { color: var(--text); font-weight: 600; }
+
+.prose { min-width: 0; }
+.prose > :first-child { margin-top: 0; }
+.prose h2 {
+	font-family: var(--serif);
+	font-weight: 500;
+	font-size: 1.65rem;
+	line-height: 1.18;
+	letter-spacing: -0.01em;
+	margin: 3rem 0 1rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--rule-strong);
+}
+.prose h3 { font-size: 1.12rem; font-weight: 600; margin: 2rem 0 0.6rem; }
+.prose h2 a, .prose h3 a { color: inherit; text-decoration: none; }
+.prose h2 a:hover::after, .prose h3 a:hover::after { content: " #"; color: var(--faint); font-weight: 400; }
+.prose p, .prose ul, .prose ol { margin: 0 0 1.1rem; }
+.prose li { margin: 0.3rem 0; }
+.prose li::marker { color: var(--faint); }
+.prose strong { font-weight: 600; }
+
+/* Numbered procedures: one step per line, the number hanging in the margin. site.js continues the count after a command. */
+.prose ol { list-style: none; counter-reset: li; padding: 0; }
+.prose ol > li { counter-increment: li; position: relative; padding-left: 2.1rem; margin: 0.55rem 0; }
+.prose ol > li::before {
+	content: counter(li) ".";
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 1.6rem;
+	text-align: right;
+	font-weight: 600;
+	font-variant-numeric: lining-nums tabular-nums;
+	color: var(--accent);
+}
+
+.prose :not(pre) > code {
+	font-size: 0.86em;
+	background: var(--surface);
+	padding: 0.05em 0.35em;
+	overflow-wrap: anywhere;
+}
+
+pre.cmd, .prose pre {
+	position: relative;
+	margin: 0.75rem 0 1.25rem;
+	padding: 0.85rem 4.75rem 0.85rem 1rem;
+	background: var(--term-bg);
+	color: var(--term-text);
+	border-radius: var(--radius);
+	font-size: 0.86rem;
+	line-height: 1.55;
+	overflow-x: auto;
+	white-space: pre;
+}
+pre.cmd code::before { content: "$ "; color: var(--term-dim); user-select: none; }
+pre.cmd.ps code::before { content: "> "; }
+.prose pre:not(.cmd) { padding-right: 1rem; }
+
+.copy-btn {
+	position: absolute;
+	top: 0.55rem;
+	right: 0.5rem;
+	font-family: var(--sans);
+	font-size: 0.76rem;
+	line-height: 1.3;
+	padding: 0.25rem 0.6rem;
+	border: 1px solid #4a5560;
+	background: transparent;
+	color: #cdd4d2;
+	cursor: pointer;
+}
+.copy-btn:hover { color: #fff; border-color: #8e9aa1; }
+.copy-btn.copied { color: var(--term-add); border-color: var(--term-add); }
+
+/* Tables as in a printed paper: a heavy rule above and below, a fine one under the head. */
+.prose table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 1.25rem 0 1.75rem;
+	font-size: 0.95rem;
+	line-height: 1.5;
+	font-variant-numeric: lining-nums tabular-nums;
+	border-top: 1.5px solid var(--text);
+	border-bottom: 1.5px solid var(--text);
+}
+.prose th, .prose td { text-align: left; vertical-align: top; padding: 0.55rem 0.9rem 0.55rem 0; border-bottom: 1px solid var(--rule); }
+.prose tr:last-child td { border-bottom: 0; }
+.prose th { font-weight: 400; font-variant-caps: all-small-caps; letter-spacing: 0.07em; font-size: 1rem; color: var(--muted); border-bottom: 1px solid var(--text); }
+.table-wrap, .table-scroll { overflow-x: auto; margin: 1.25rem 0 1.75rem; }
+.table-wrap > table, .table-scroll > table { margin: 0; }
+
+/* A matrix of short marks (marked by site.js): centred marks. */
+.prose table.matrix th:not(:first-child), .prose table.matrix td:not(:first-child) { text-align: center; padding-inline: 0.5rem; }
+.prose table.matrix td.yes { color: var(--sap); font-weight: 600; }
+
+.prose blockquote { margin: 1.25rem 0; padding: 0.1rem 0 0.1rem 1.1rem; border-left: 2px solid var(--accent); color: var(--muted); font-style: italic; }
+.prose blockquote code { font-style: normal; }
+.prose hr { border: 0; border-top: 1px solid var(--rule-strong); margin: 2.5rem 0; }
+
+.note { padding: 0.85rem 1rem; background: var(--raised); border: 1px solid var(--rule-strong); border-top: 2px solid var(--accent); }
+.form-embed { width: 100%; min-height: 70vh; border: 1px solid var(--rule-strong); background: #fff; }
+
+/* ---------------------------------------------------------------- footer: the imprint */
+
+.site-footer { border-top: 1px solid var(--text); padding: 2.75rem 0 2rem; font-size: 0.95rem; }
+.footer-inner { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr); gap: 3rem; }
+.footer-about p { margin: 0.8rem 0 0; color: var(--muted); max-width: 28rem; }
+/* The citation is a reference entry, Vancouver style, as the reader would cite it. */
+.cite { padding-left: 1.5rem; text-indent: -1.5rem; font-size: 0.92rem; line-height: 1.55; }
+.cite-label { font-variant-caps: all-small-caps; letter-spacing: 0.08em; color: var(--text); margin-right: 0.35em; }
+.cite a { color: inherit; }
+.footer-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; font-family: var(--sans); font-size: 0.9rem; }
+.footer-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; align-content: start; }
+.footer-nav a { color: var(--muted); text-decoration: none; }
+.footer-nav a:hover { color: var(--text); text-decoration: underline; }
+.footer-versions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.25rem;
+	margin-top: 2.5rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--rule-strong);
+	font-family: var(--mono);
+	font-size: 0.76rem;
+	color: var(--faint);
+}
+
+/* ---------------------------------------------------------------- menu button and language link */
+
+.menu-btn { display: none; }
+.lang-link { font-family: var(--mono); font-size: 0.8rem; letter-spacing: 0.04em; border: 1px solid var(--rule-strong); padding: 0.2rem 0.45rem; }
+.lang-link:hover { border-color: var(--text); text-decoration: none; }
+
+@media (max-width: 76rem) {
+	.header-inner { flex-wrap: wrap; height: auto; min-height: 3.75rem; padding: 0.55rem 0; gap: 0.5rem 1rem; }
+	.header-tools { margin-left: auto; }
+	.menu-btn { display: inline-grid; }
+	.nav { order: 3; flex-basis: 100%; display: none; margin: 0; }
+	.menu-open .nav { display: block; }
+	.nav ul { flex-direction: column; overflow: visible; padding: 0.25rem 0 0.5rem; gap: 0; }
+	.nav a { padding: 0.6rem 0.25rem; font-size: 1rem; border-top: 1px solid var(--rule); color: var(--text); }
+	.nav a[aria-current="page"] { color: var(--accent); }
+}
+
+/* ---------------------------------------------------------------- narrow screens */
+
+@media (max-width: 64rem) {
+	.doc-body { grid-template-columns: minmax(0, 1fr); }
+	.toc { display: none; }
+	.stages { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 2rem; }
+	.stages::before { display: none; }
+}
+
+@media (max-width: 52rem) {
+	.split, .pair, .modes, .footer-inner { grid-template-columns: minmax(0, 1fr); }
+	.needs > div { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+}
+
+@media (max-width: 34rem) {
+	.wrap { width: min(100% - 2rem, var(--wrap)); }
+	.plate .wrap { width: min(100% - 1rem, var(--wrap)); }
+	.footer-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.gh-link { display: none; }
+	.stages { grid-template-columns: minmax(0, 1fr); }
+	.specimen { font-size: 0.78rem; padding-right: 2.1rem; }
+	pre.cmd { padding: 0.85rem 1rem 2.75rem; white-space: pre-wrap; word-break: break-all; }
+	.copy-btn { top: auto; bottom: 0.5rem; }
+	.install-panel pre.cmd { padding: 0.85rem 1rem; word-break: normal; }
+	.install-panel .copy-btn { top: -2.15rem; bottom: auto; }
+	.runhead .mid:not(:last-child) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after { transition: none !important; animation: none !important; }
+}

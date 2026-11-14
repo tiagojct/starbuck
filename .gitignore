@@ -7,3 +7,5 @@ dist/
 _starbuck/
 validation/.cache/
 PLAN.md
+node_modules/
+site/_site/

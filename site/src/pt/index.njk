@@ -1,0 +1,63 @@
+---
+layout: base.njk
+title: Starbuck
+hideTitle: true
+bodyClass: home
+lang: pt-PT
+description: O Starbuck verifica as referências de um manuscrito no Crossref, no PubMed, no OpenAlex e noutros registos públicos. Cada obra citada existe, corresponde à citação, foi retratada? Para Word, LaTeX, Markdown e Quarto. Gratuito e de código aberto.
+alt: /
+---
+
+<section class="plate" aria-labelledby="plate-1">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">Verificação de referências para manuscritos</span><span>Estampa I.</span></p>
+		<div class="split">
+			<div class="legend">
+				<h1 id="plate-1">Verifique cada referência antes de um revisor.</h1>
+				<p class="lead">O Starbuck lê um manuscrito e a sua lista de referências, e procura cada obra citada no Crossref, no PubMed, no OpenAlex e noutros registos públicos. Diz-lhe que referências não existem, quais apontam para outro artigo, quais têm o ano ou o autor errados e quais citam uma obra retratada. Propõe as correções como um diff.</p>
+				<div class="install" data-tabs>
+					<div class="install-tabs" role="tablist" aria-label="Instalar">
+						<button type="button" role="tab" id="tab-uv" aria-controls="panel-uv" aria-selected="true">uv</button>
+						<button type="button" role="tab" id="tab-subsub" aria-controls="panel-subsub" aria-selected="false" tabindex="-1">No Sub-Sub</button>
+					</div>
+					<div class="install-panel" role="tabpanel" id="panel-uv" aria-labelledby="tab-uv">
+						<pre class="cmd"><code>uv tool install starbuck</code></pre>
+						<p>Depois, <code>starbuck check artigo.docx</code>. Precisa do <a href="https://docs.astral.sh/uv/" rel="noopener">uv</a>. <a href="/guide/" hreflang="en">Guia, em inglês</a>.</p>
+					</div>
+					<div class="install-panel" role="tabpanel" id="panel-subsub" aria-labelledby="tab-subsub" hidden>
+						<pre class="cmd"><code>subsub init --starbuck on</code></pre>
+						<p>O Sub-Sub descarrega o Starbuck da primeira vez. Depois, escreva <code>/verify artigo.docx</code>.</p>
+					</div>
+				</div>
+				<p class="newcomer sibling">O Starbuck é o verificador de referências do <a href="{{ site.subsub }}/pt/">Sub-Sub</a>, o assistente de investigação para o Zotero. Também funciona sozinho: no terminal, numa GitHub Action ou a partir de qualquer agente de IA.</p>
+			</div>
+			<div class="prose-block">
+				<h2>Quatro perguntas para cada referência</h2>
+				<p><strong>Existe?</strong> O DOI, o PMID, o PMCID, o identificador do arXiv ou o ISBN existem. Sem identificador, o Starbuck pesquisa no Crossref, no PubMed, no OpenAlex, no DataCite e na Open Library.</p>
+				<p><strong>Corresponde?</strong> O título, o primeiro autor e o ano citados coincidem com o registo. Um DOI real de outro artigo é uma falha.</p>
+				<p><strong>Mantém-se?</strong> Retratações, manifestações de preocupação e correções, do Crossref com os dados da Retraction Watch, do PubMed e do OpenAlex.</p>
+				<p><strong>Sustenta a frase?</strong> Opcional: um modelo de linguagem lê o texto completo ou o resumo e tem de citar a passagem em que se baseia. O Starbuck rejeita uma citação que não esteja na fonte.</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section class="plate" aria-labelledby="plate-2">
+	<div class="wrap plate-mark">
+		<p class="runhead"><span>Starbuck</span><span class="mid">O que lê</span><span>Estampa II.</span></p>
+		<div class="split">
+			<div>
+				<h2 id="plate-2">Escreva na ferramenta que usa.</h2>
+				<ul class="result-points">
+					<li><strong>Word.</strong> As citações inseridas com o Zotero, o Mendeley ou o EndNote trazem os registos, por isso não é preciso um ficheiro de bibliografia. Sem elas, o Starbuck lê citações numeradas, em expoente e autor-ano.</li>
+					<li><strong>LaTeX.</strong> <code>\cite</code> nas formas do natbib e do biblatex, com os ficheiros <code>.bib</code>, ou uma lista <code>thebibliography</code>.</li>
+					<li><strong>Markdown e Quarto.</strong> Citações do Pandoc com BibTeX ou CSL, e as listas numeradas que os agentes de IA escrevem.</li>
+				</ul>
+			</div>
+			<div class="prose-block">
+				<p>O relatório abre num navegador ou no Word. Começa pelas referências que precisam de atenção, cada uma com a razão, os dados citados e os do registo lado a lado, a frase que a cita e o que fazer.</p>
+				<p>Testado em {{ validation.strict.n }} erros introduzidos de propósito: encontrou {{ validation.strict.k }} com o resultado esperado, e as {{ validation.specificity.n }} referências corretas passaram. Fora da biomedicina, e para livros e obras em português, há mais referências que não consegue confirmar. <a href="/validation/" hreflang="en">Os testes e os limites, em inglês</a>.</p>
+			</div>
+		</div>
+	</div>
+</section>
