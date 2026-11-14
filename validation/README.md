@@ -86,9 +86,11 @@ could not be checked are counted apart. 95% Wilson intervals.
 |---|---|---|---|---|
 | 2026-10-04, live | 0.2.0 | 64/65 (98.5%, 91.8 to 99.7) | 65/65 | 50/50 |
 | 2026-11-14, live | 0.3.0 | 65/65 (100%, 94.4 to 100) | 65/65 | 50/50 |
+| 2026-11-14, live | 0.4.0 | 65/65 (100%, 94.4 to 100) | 65/65 | 50/50 |
 
 In 0.3.0, the PubMed search finds `castro2018-noid`, which Crossref search
-missed. The 2026-10-04 recording does not hold the new searches; a replay of it
+missed. The 0.4.0 run gave the same result and finding code for every entry as the 0.3.0 run
+of the same day, and replaced its files (the 0.3.0 files are in the git history). The 2026-10-04 recording does not hold the new searches; a replay of it
 with 0.3.0 gives the same verdicts as before, with a note that some searches
 did not answer. Use the 2026-11-14 recording for replays of 0.3.0.
 

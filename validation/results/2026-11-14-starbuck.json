@@ -1,12 +1,13 @@
 {
- "starbuck": "0.3.0",
- "checked_at": "2026-11-14T17:32:15+00:00",
+ "starbuck": "0.4.0",
+ "checked_at": "2026-11-14T19:48:06+00:00",
  "document": "validation/manuscript.qmd",
  "style": "citekey",
  "bibliography": [
   "validation/references.bib"
  ],
  "warnings": [],
+ "unit": "line",
  "levels": [
   1,
   2,
