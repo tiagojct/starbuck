@@ -132,7 +132,7 @@ Level 4 asks whether each source supports the sentence that cites it. It is opti
 
 `--zotero` reads a copy of your Zotero database (`~/Zotero`, or the folder you give), so Zotero can stay open and the library does not change. A second model (`STARBUCK_JUDGE2_MODEL`) makes both judge every sentence; where they differ, the report keeps the less supportive verdict and shows both.
 
-A language model can be wrong. Read the source before you change the text. In Sub-Sub, the model you already use judges, and no settings are needed: see [Starbuck in Sub-Sub](/sub-sub/).
+A language model can be wrong. On 60 claims from a public dataset, a strong model gave the expected verdict for 48 ([Validation](/validation/)). Read the source before you change the text. In Sub-Sub, the model you already use judges, and no settings are needed: see [Starbuck in Sub-Sub](/sub-sub/).
 
 ## Settings
 
