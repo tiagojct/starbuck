@@ -2,7 +2,7 @@
 layout: base.njk
 title: Validation
 eyebrow: How well it checks, and the limits
-lead: Two tests. One with errors put into correct references on purpose, run again for each release. One on 300 references from published articles, made for Sub-Sub. The author of Starbuck ran both; neither is an independent audit.
+lead: Three tests. One with errors put into correct references on purpose, run again for each release. One on 300 references from published articles, made for Sub-Sub. One of the claim-support judge on 100 cases from public datasets. The author of Starbuck ran all three; none is an independent audit.
 ---
 
 ## Test 1: injected errors
@@ -41,6 +41,22 @@ The full test is on the [Sub-Sub Tests page]({{ site.subsub }}/tests/).
 
 Since then, version 0.3.0 added searches in PubMed, OpenAlex, DataCite and Open Library for references without an identifier, which is where most of the unconfirmed references were. This test has not been run again yet.
 
+## Test 3: the claim-support judge on public datasets
+
+Level 4 asks a language model whether the cited work supports the sentence that cites it. This test gives the judge 100 cases that the author of Starbuck did not write or label: 60 from SciFact (claims with a cited abstract, labelled support, contradict or no information) and 40 from PubMedQA (questions with a yes, no or maybe answer, turned into a citing sentence). Each abstract goes straight to the judge, so the test measures the judge and the quote check, not the search for the source.
+
+Run: 2026-11-14, Starbuck 0.4.0, judge Claude Sonnet 5.5.
+
+<div class="figures">
+<div><b>48/60</b><span>SciFact cases with the expected verdict (80%; 95% CI 68.2 to 88.2)</span></div>
+<div><b>25/40</b><span>PubMedQA cases with the expected verdict (62.5%; 95% CI 47.0 to 75.8)</span></div>
+<div><b>4/100</b><span>cases marked supported where the label expects another verdict</span></div>
+</div>
+
+Most disagreements are stricter than the label: of 20 SciFact claims that the source supports, 6 came back partly supported, not supported or not assessable. PubMedQA's "maybe" answers fit no verdict well, and its citing sentences come from a template, so the SciFact score is the better estimate. The judge gave 1 quote that was not in the source; Starbuck rejected that verdict.
+
+On the 20 cases that the author wrote for level 4, with the search for the source included, the same judge gave the expected verdict for all 20.
+
 ## What this means when you use it
 
 - A Fail is strong evidence. Check it, then correct the reference.
@@ -49,5 +65,5 @@ Since then, version 0.3.0 added searches in PubMed, OpenAlex, DataCite and Open 
 
 ## Not measured yet
 
-- Claim support on an independent set. The repository has 100 cases from SciFact and PubMedQA, ready to run against a judge model; no run has been made yet.
+- Claim support with other judge models, and on real manuscripts where the full text is available.
 - Word and LaTeX input on a large set of real manuscripts.

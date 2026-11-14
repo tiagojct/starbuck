@@ -156,7 +156,23 @@ uv run python validation/judge_external.py --record
 uv run python validation/judge_external.py --replay validation/recordings/<date>-judge-<model>.json.gz
 ```
 
-No run against a real model has been made yet.
+### Results
+
+| Date | Starbuck | Judge | Set | Strict | Lenient | False "supported" | Quotes rejected |
+|---|---|---|---|---|---|---|---|
+| 2026-11-14, live | 0.4.0 | claude-sonnet-5-5 | all 100 | 73/100 (73.0%, 63.6 to 80.7) | 75/100 | 4 | 1 |
+| | | | SciFact 60 | 48/60 (80.0%, 68.2 to 88.2) | 50/60 | 1 | |
+| | | | PubMedQA 40 | 25/40 (62.5%, 47.0 to 75.8) | 25/40 | 3 | |
+
+Most disagreements on SciFact are stricter than the label: 6 of the 20
+SUPPORT cases came back partly_supported, not_supported or cannot_assess. On
+PubMedQA, "maybe" maps poorly to partly_supported (2 of 10 agree), and the
+citing sentence comes from a template, so the SciFact score is the better
+estimate. The same day, `run_claims.py` gave 20/20 on `claims.csv` (judge
+claude-sonnet-5-5; 17/20 with the earlier judge on 2026-10-04). Files:
+`results/2026-11-14-judge-claude-sonnet-5-5.*`,
+`results/2026-11-14-claims-claude-sonnet-5-5.*` and the two recordings with the
+same names.
 
 ### Licences
 
