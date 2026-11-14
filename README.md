@@ -131,7 +131,7 @@ Starbuck reads four citation styles:
   research agents often write this format.
 - Author-year: `(Smith et al., 2020; Jones 2019a)` and `Smith et al. (2020)`,
   with an unnumbered list (APA, Harvard).
-- Citation fields in Word: Zotero, Mendeley Desktop and EndNote keep the record
+- Citations in Word: Zotero, Mendeley (Desktop and Cite), EndNote and Citavi keep the record
   of each cited work in the document. Starbuck reads these records, so no
   bibliography file is needed.
 

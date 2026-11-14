@@ -53,7 +53,7 @@ starbuck ids 10.1183/09031936.00080312 arXiv:1706.03762
 
 | Manuscript | Citations | References |
 |---|---|---|
-| Word (`.docx`) | Zotero, Mendeley Desktop or EndNote citations | Read from the citations: no file needed |
+| Word (`.docx`) | Zotero, Mendeley, EndNote or Citavi citations | Read from the citations: no file needed |
 | Word (`.docx`) | `[1]`, superscript numbers, or (Smith, 2020) | The reference list at the end |
 | LaTeX (`.tex`) | `\cite`, `\citep`, `\citet`, `\parencite`, `\textcite`, `\autocite` | `\bibliography{}` or `\addbibresource{}`, or `thebibliography` |
 | Markdown, Quarto (`.md`, `.qmd`) | `[@key]`, `@key` | BibTeX, CSL JSON or CSL YAML named in the YAML header |

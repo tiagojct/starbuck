@@ -5,8 +5,9 @@
     uv run python validation/run.py --replay validation/recordings/2026-10-04.json.gz
                                                      no network: the saved answers only
 
-Writes results/<date>[-replay]-starbuck.json (Starbuck's own result) and
-results/<date>[-replay]-scores.md and .csv.
+Writes results/<date>-<version>[-replay]-starbuck.json (Starbuck's own result) and
+results/<date>-<version>[-replay]-scores.md and .csv; --record writes
+recordings/<date>-<version>.json.gz. Runs before 0.4.1 have the date only.
 
 Scoring
 - An entry with an injected error is detected when Starbuck's verdict is the
@@ -174,7 +175,7 @@ def report(rows: list[dict], overall: dict, meta: dict) -> str:
 
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--record", action="store_true", help="save every service answer to recordings/<date>.json.gz")
+    ap.add_argument("--record", action="store_true", help="save every service answer to recordings/<date>-<version>.json.gz")
     ap.add_argument("--replay", help="answer from this recording, without the network")
     args = ap.parse_args()
     today = dt.date.today().isoformat()
@@ -200,10 +201,11 @@ async def main() -> int:
 
     out = HERE / "results"
     out.mkdir(exist_ok=True)
-    stem = today + ("-replay" if args.replay else "")
+    # the version in the name: a run of another version on the same day does not replace this one
+    stem = f"{today}-{result['starbuck']}" + ("-replay" if args.replay else "")
     if args.record:
         (HERE / "recordings").mkdir(exist_ok=True)
-        rec_path = HERE / "recordings" / f"{today}.json.gz"
+        rec_path = HERE / "recordings" / f"{today}-{result['starbuck']}.json.gz"
         data = json.dumps({"recorded": started, "starbuck": result["starbuck"],
                            "responses": dict(sorted(transport.saved.items()))}, indent=1, ensure_ascii=False)
         rec_path.write_bytes(gzip.compress(data.encode(), mtime=0))

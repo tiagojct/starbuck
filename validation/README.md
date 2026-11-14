@@ -14,7 +14,7 @@ tool. This folder is not part of the package.
 | `injections.csv` | What was changed in each entry and how the change was confirmed. |
 | `evidence/build.json` | The Crossref, PubMed and OpenAlex records the build used, with the build time. |
 | `run.py` | Runs Starbuck and scores it against `truth.csv`. |
-| `recordings/<date>.json.gz` | Every service answer of one run, to repeat it without the network. |
+| `recordings/<date>-<version>.json.gz` | Every service answer of one run (before 0.4.1: `<date>.json.gz`), to repeat it without the network. |
 | `results/` | Starbuck's JSON and the scores (Markdown and CSV) of each run. |
 | `claims.csv`, `check_claims.py`, `evidence/abstracts.json` | Level 4 cases (claim support). |
 | `run_claims.py`, `claims.qmd` | Runs level 4 on the cases (`claims.qmd` is written from `claims.csv`) and scores it. |

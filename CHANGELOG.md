@@ -2,6 +2,11 @@
 
 Starbuck follows semantic versions. Before 1.0, a change in the second number (0.4) can add commands, options and result codes; the meaning of Fail, Check, Note and Pass does not change.
 
+## Unreleased
+
+- Word: citations inserted with Mendeley Cite (the current Mendeley add-in) and Citavi are read, with their records, like those of Zotero, Mendeley Desktop and EndNote. Paragraphs inside content controls are read.
+- Validation: result and recording files carry the Starbuck version, so two runs on the same day do not replace each other. Level 4 judge results with Claude Sonnet 5.5: 48 of 60 SciFact cases and 25 of 40 PubMedQA cases with the expected verdict.
+
 ## 0.4.0 (2026-11-14)
 
 Word, LaTeX and author-year manuscripts.

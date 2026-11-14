@@ -1,5 +1,6 @@
 """Word, LaTeX and author-year manuscripts."""
 
+import base64
 import html
 import json
 import zipfile
@@ -86,6 +87,70 @@ def test_word_with_endnote_fields(tmp_path):
     ref = doc.references["Miller2005-12"]
     assert ref.doi == MILLER_DOI and ref.authors == ["Miller", "Hankinson"] and ref.year == "2005"
     assert doc.citations[0].key == "Miller2005-12"
+
+
+def b64(data):
+    return base64.b64encode(json.dumps(data).encode()).decode()
+
+
+def mendeley_cite(shown, *items):
+    data = {"citationID": "MENDELEY_CITATION_1de18c13", "properties": {"noteIndex": 0}, "isEdited": False,
+            "citationItems": [{"id": uid, "itemData": {**item, "id": uid}} for uid, item in items]}
+    return (f'<w:sdt><w:sdtPr><w:tag w:val="MENDELEY_CITATION_v3_{b64(data)}"/><w:id w:val="-14"/></w:sdtPr>'
+            f"<w:sdtContent>{run(shown)}</w:sdtContent></w:sdt>")
+
+
+def test_word_with_mendeley_cite(tmp_path):
+    f = tmp_path / "paper.docx"
+    docx(f, [
+        para(run("Reference equations cover the age range 3 to 95 years "),
+             mendeley_cite("(Quanjer et al., 2012; Miller, 2005)",
+                           ("e219b34e-d397-37b4-818e-80ca578eae74", QUANJER),
+                           ("0a1b2c3d-1111-2222-3333-444455556666", MILLER)), run(".")),
+        para(run("Spirometry has standards "),
+             mendeley_cite("(Miller, 2005)", ("0a1b2c3d-1111-2222-3333-444455556666", MILLER)), run(".")),
+    ])
+    doc = read_manuscript(f)
+    assert doc.style == "fields"
+    assert set(doc.references) == {"Quanjer2012-e219", "Miller2005-0a1b"}
+    assert doc.references["Quanjer2012-e219"].doi == QUANJER_DOI
+    assert [(c.key, c.line) for c in doc.citations] == [("Quanjer2012-e219", 1), ("Miller2005-0a1b", 1),
+                                                         ("Miller2005-0a1b", 2)]
+    assert "Quanjer et al." not in doc.citations[0].sentence
+
+
+def citavi(*refs):
+    data = {"$id": "1", "$type": "SwissAcademic.Citavi.Citations.WordPlaceholder", "Entries": [
+        {"$id": str(10 + n), "Id": f"entry{n}", "ReferenceId": rid, "Reference": ref}
+        for n, (rid, ref) in enumerate(refs)], "Tag": "CitaviPlaceholder#550e8400", "WAIVersion": "6.14.0.0"}
+    return "ADDIN CitaviPlaceholder{" + b64(data) + "}"
+
+
+def test_word_with_citavi_fields(tmp_path):
+    miller = {"$id": "2", "ReferenceType": "JournalArticle", "Title": "Standardisation of spirometry",
+              "Authors": [{"$id": "3", "FirstName": "Martin", "MiddleName": "R.", "LastName": "Miller"},
+                          {"$id": "4", "LastName": "Hankinson"}],
+              "Year": "2005", "Doi": MILLER_DOI, "PubMedId": "16055882", "Volume": "26", "Number": "2",
+              "PageRange": "<sp>\r\n  <n>319</n>\r\n</sp>\r\n<ep>\r\n  <n>338</n>\r\n</ep>\r\n<os>319-338</os>",
+              "Periodical": {"$id": "5", "Name": "European Respiratory Journal"}}
+    later = {"$id": "6", "ReferenceType": "JournalArticle", "Title": "Another paper on spirometry",
+             "Authors": [{"$ref": "3"}], "Year": "2006", "Periodical": {"$ref": "5"}}
+    f = tmp_path / "paper.docx"
+    sdt = ('<w:sdt><w:sdtPr><w:alias w:val="To edit, see citavi.com/edit"/><w:tag w:val="CitaviPlaceholder#550e8400"/>'
+           "</w:sdtPr><w:sdtContent>{}</w:sdtContent></w:sdt>")
+    docx(f, [para(run("Spirometry needs standards "),
+                  sdt.format(field(citavi(("b213355e-df97-4b43-9e69-8a185817ce57", miller),
+                                          ("c0ffee00-df97-4b43-9e69-8a185817ce57", later)),
+                                   "(Miller et al. 2005; Miller 2006)", split=True)), run("."))])
+    doc = read_manuscript(f)
+    assert doc.style == "fields"
+    ref = doc.references["Miller2005-b213"]
+    assert ref.doi == MILLER_DOI and ref.pmid == "16055882" and ref.authors == ["Miller", "Hankinson"]
+    assert ref.year == "2005" and ref.title == "Standardisation of spirometry"
+    other = doc.references["Miller2006-c0ff"]
+    assert other.authors == ["Miller"] and other.container == "European Respiratory Journal"
+    assert [c.key for c in doc.citations] == ["Miller2005-b213", "Miller2006-c0ff"]
+    assert "Miller et al." not in doc.citations[0].sentence
 
 
 def test_word_without_fields_and_a_numbered_word_list(tmp_path):

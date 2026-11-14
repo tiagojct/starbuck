@@ -1,8 +1,9 @@
 """Word and LaTeX manuscripts, turned into the Markdown that parse.py reads.
 
 Word (.docx): citation fields of Zotero (ADDIN ZOTERO_ITEM), Mendeley Desktop and other
-CSL tools (ADDIN CSL_CITATION) and EndNote (ADDIN EN.CITE) hold the cited records; each
-field becomes a [@key] citation and its record a reference. A document without fields
+CSL tools (ADDIN CSL_CITATION), EndNote (ADDIN EN.CITE) and Citavi (ADDIN CitaviPlaceholder),
+and the content controls of Mendeley Cite (w:tag MENDELEY_CITATION_v3_), hold the cited
+records; each citation becomes a [@key] citation and its record a reference. A document without fields
 is read as text: numbered or author-year citations with a reference list. Word's own
 list numbers are not in the text, so the paragraphs of a numbered list in the reference
 section get their numbers back. Headings become Markdown headings; tables are left out.
@@ -82,6 +83,32 @@ def _endnote_records(instr: str) -> list[dict]:
     return out
 
 
+UUID = re.compile(r"[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}", re.I)
+
+
+def _key(item: dict, key: str, n: int) -> str:
+    """A citation key; a bare UUID (Mendeley Cite, Citavi) becomes author + year + its first 4 characters."""
+    key = re.sub(r"[^\w:.\-]", "", str(key))
+    if not key or UUID.fullmatch(key):
+        author = (item.get("author") or [{}])[0]
+        name = re.sub(r"[^A-Za-z0-9]", "", str(author.get("family") or author.get("literal") or ""))[:20]
+        year = str(((item.get("issued") or {}).get("date-parts") or [[""]])[0][0])
+        key = f"{name or 'ref'}{year}-{key[:4] or n}"
+    return key
+
+
+def _csl_items(data: dict) -> list[dict]:
+    out = []
+    for n, ci in enumerate(data.get("citationItems") or [], 1):
+        item = dict(ci.get("itemData") or {})
+        uri = (ci.get("uris") or ci.get("uri") or [""])
+        uri = uri[0] if isinstance(uri, list) and uri else uri if isinstance(uri, str) else ""
+        key = uri.rstrip("/").rsplit("/", 1)[-1] if uri else str(item.get("id") or ci.get("id") or n)
+        item["id"] = _key(item, key, n)
+        out.append(item)
+    return out
+
+
 def _csl_records(instr: str) -> list[dict]:
     """CSL items from a Zotero or Mendeley field (ADDIN ZOTERO_ITEM / CSL_CITATION {json})."""
     start = instr.find("{")
@@ -91,13 +118,127 @@ def _csl_records(instr: str) -> list[dict]:
         data, _ = json.JSONDecoder().raw_decode(instr[start:])
     except ValueError:
         return []
+    return _csl_items(data) if isinstance(data, dict) else []
+
+
+def _b64json(raw: str) -> object:
+    try:
+        text = base64.b64decode(re.sub(r"\s", "", raw) + "=" * (-len(re.sub(r"\s", "", raw)) % 4)).decode("utf-8-sig")
+        return json.loads(text)
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def mendeley_cite_records(tag: str) -> list[dict]:
+    """CSL items from a Mendeley Cite content control (w:tag MENDELEY_CITATION_v3_<base64 JSON>)."""
+    data = _b64json(tag[len("MENDELEY_CITATION_v3_"):]) if tag.startswith("MENDELEY_CITATION_v3_") else None
+    return _csl_items(data) if isinstance(data, dict) else []
+
+
+def _resolve_refs(data: object) -> object:
+    """Replace the {"$ref": id} objects of Newtonsoft JSON with the object of that $id."""
+    ids: dict[str, object] = {}
+
+    def collect(x: object) -> None:
+        if isinstance(x, dict):
+            if "$id" in x:
+                ids[str(x["$id"])] = x
+            for v in x.values():
+                collect(v)
+        elif isinstance(x, list):
+            for v in x:
+                collect(v)
+
+    def resolve(x: object, depth: int = 0) -> object:
+        if depth > 40:
+            return x
+        if isinstance(x, dict):
+            if set(x) == {"$ref"}:
+                return ids.get(str(x["$ref"]), {})
+            return {k: resolve(v, depth + 1) for k, v in x.items()}
+        if isinstance(x, list):
+            return [resolve(v, depth + 1) for v in x]
+        return x
+
+    collect(data)
+    return resolve(data)
+
+
+CITAVI_TYPES = {"JournalArticle": "article-journal", "NewspaperArticle": "article-newspaper", "Book": "book",
+                "BookEdited": "book", "Contribution": "chapter", "ContributionInBookEdited": "chapter",
+                "InternetDocument": "webpage", "Thesis": "thesis", "ConferenceProceedings": "book",
+                "UnpublishedWork": "manuscript", "Report": "report", "PressRelease": "article"}
+
+
+def _citavi_item(ref: dict) -> dict:
+    def s(x: object) -> str:
+        return re.sub(r"\s+", " ", x).strip() if isinstance(x, str) else ""
+
+    item: dict = {"type": CITAVI_TYPES.get(s(ref.get("ReferenceType")), "article-journal")}
+    title = s(ref.get("Title")) or s(ref.get("Title1"))
+    if sub := s(ref.get("Subtitle")):
+        title = f"{title}: {sub}" if title else sub
+    if title:
+        item["title"] = title
+    people = ref.get("Authors") or ref.get("Editors") or []
+    authors = []
+    for p in people if isinstance(people, list) else []:
+        if not isinstance(p, dict):
+            continue
+        if family := s(p.get("LastName")):
+            authors.append({"family": family, "given": " ".join(x for x in (s(p.get("FirstName")),
+                                                                            s(p.get("MiddleName"))) if x)})
+        elif name := s(p.get("Name")):
+            authors.append({"literal": name})
+    if authors:
+        item["author"] = authors
+    if m := re.search(r"\b(1[5-9]\d\d|20\d\d)\b", s(ref.get("YearResolved")) or s(ref.get("Year"))):
+        item["issued"] = {"date-parts": [[int(m.group(1))]]}
+    parent = ref.get("ParentReference") if isinstance(ref.get("ParentReference"), dict) else {}
+    periodical = ref.get("Periodical") if isinstance(ref.get("Periodical"), dict) else {}
+    if container := s(periodical.get("Name")) or s(parent.get("Title")):
+        item["container-title"] = container
+    if d := norm_doi(s(ref.get("Doi"))):
+        item["DOI"] = d
+    if re.fullmatch(r"\d{1,9}", s(ref.get("PubMedId"))):
+        item["PMID"] = s(ref.get("PubMedId"))
+    if re.fullmatch(r"(?i)PMC\d+", s(ref.get("PmcId"))):
+        item["PMCID"] = s(ref.get("PmcId")).upper()
+    if isbn := norm_isbn(s(ref.get("Isbn")) or s(parent.get("Isbn"))):
+        item["ISBN"] = isbn
+    if url := s(ref.get("OnlineAddress")):
+        item["URL"] = url
+    if vol := s(ref.get("Volume")):
+        item["volume"] = vol
+    if item["type"] == "article-journal" and (issue := s(ref.get("Number"))):
+        item["issue"] = issue
+    pages = ref.get("PageRange")
+    pages = pages.get("OriginalString") if isinstance(pages, dict) else pages
+    if isinstance(pages, str) and (p := s((re.findall(r"<os>([^<]*)</os>", pages) or [pages])[-1])):
+        item["page"] = p  # the last <os> of Citavi's XML form is the whole range
+    return item
+
+
+def citavi_records(instr: str) -> list[dict]:
+    """CSL items from a Citavi field (ADDIN CitaviPlaceholder{<base64 JSON>})."""
+    m = re.search(r"CITAVI\.?PLACEHOLDER\s*(?:\{?[0-9a-f-]{36}\}?)?\s*\{?\s*([A-Za-z0-9+/=\s]{40,})", instr, re.I)
+    data = _b64json(m.group(1)) if m else None
+    if data is None and (start := instr.find("{")) >= 0:  # older versions: JSON in the field itself
+        try:
+            data, _ = json.JSONDecoder().raw_decode(instr[start:])
+        except ValueError:
+            data = None
+    if not isinstance(data, dict):
+        return []
+    data = _resolve_refs(data)
     out = []
-    for n, ci in enumerate(data.get("citationItems") or [], 1):
-        item = dict(ci.get("itemData") or {})
-        uri = (ci.get("uris") or ci.get("uri") or [""])
-        uri = uri[0] if isinstance(uri, list) and uri else uri if isinstance(uri, str) else ""
-        key = uri.rstrip("/").rsplit("/", 1)[-1] if uri else str(item.get("id") or ci.get("id") or n)
-        item["id"] = re.sub(r"[^\w:.\-]", "", str(key)) or str(n)
+    for n, e in enumerate(data.get("Entries") or [], 1):
+        ref = e.get("Reference") if isinstance(e, dict) else None
+        if not isinstance(ref, dict):
+            continue
+        item = _citavi_item(ref)
+        key = ref.get("CitationKey") or ref.get("BibTeXKey") or e.get("ReferenceId") or ref.get("Id") or ""
+        item["id"] = _key(item, str(key), n)
         out.append(item)
     return out
 
@@ -107,6 +248,8 @@ def field_records(instr: str) -> list[dict]:
         return _endnote_records(instr)
     if "ZOTERO_ITEM" in instr or "CSL_CITATION" in instr:
         return _csl_records(instr)
+    if re.search(r"CITAVI\.?PLACEHOLDER", instr, re.I):
+        return citavi_records(instr)
     return []
 
 
@@ -173,7 +316,12 @@ def docx_to_markdown(path: Path) -> tuple[str, list[dict], list[int], str]:
     in_refs = False
     counters: dict[str, int] = {}
     body = root.find(f"{W}body")
-    paragraphs = [el for el in (body if body is not None else []) if el.tag == f"{W}p"]
+    paragraphs = []
+    for el in body if body is not None else []:
+        if el.tag == f"{W}p":
+            paragraphs.append(el)
+        elif el.tag == f"{W}sdt":  # a content control around whole paragraphs (a bibliography, a section)
+            paragraphs += [p for p in el.iter(f"{W}p")]
     seen_heading = False  # superscript numbers before the first heading are affiliations, not citations
     for n, p in enumerate(paragraphs, 1):
         out: list[str] = []
@@ -196,7 +344,20 @@ def docx_to_markdown(path: Path) -> tuple[str, list[dict], list[int], str]:
             else:
                 out.append(raw)
 
+        hidden: set[int] = set()  # text of Mendeley Cite citations, replaced by the keys
         for el in p.iter():
+            if id(el) in hidden:
+                continue
+            if el.tag == f"{W}sdt":
+                tag = el.find(f"{W}sdtPr/{W}tag")
+                recs = mendeley_cite_records(tag.get(f"{W}val") or "") if tag is not None else []
+                if recs:
+                    flush()
+                    for r in recs:
+                        items.setdefault(r["id"], r)
+                    out.append(" [" + "; ".join(f"@{r['id']}" for r in recs) + "]")
+                    hidden.update(id(t) for t in el.iter(f"{W}t"))
+                continue
             if el.tag == f"{W}r":
                 va = el.find(f"{W}rPr/{W}vertAlign")
                 superscript = va is not None and va.get(f"{W}val") == "superscript"

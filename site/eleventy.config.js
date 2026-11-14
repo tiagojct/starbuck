@@ -16,10 +16,15 @@ const LABELS = {
 	no_identifier_invented: "Invented work, no identifier", dead_web_page: "Web page that is gone",
 };
 
-/** The newest live validation run (validation/results/<date>-scores.md, not a replay). */
+/** The newest live validation run (validation/results/<date>[-<version>]-scores.md, not a replay). */
 function validation() {
 	const dir = path.join(PKG, "validation", "results");
-	const runs = fs.readdirSync(dir).filter((f) => /^\d{4}-\d{2}-\d{2}-scores\.md$/.test(f)).sort();
+	const NAME = /^(\d{4}-\d{2}-\d{2})(?:-(\d+)\.(\d+)\.(\d+))?-scores\.md$/;
+	const order = (f) => {
+		const m = f.match(NAME);
+		return [m[1], ...[m[2], m[3], m[4]].map((x) => String(+(x || 0)).padStart(6, "0"))].join(" ");
+	};
+	const runs = fs.readdirSync(dir).filter((f) => NAME.test(f)).sort((a, b) => order(a).localeCompare(order(b)));
 	const text = fs.readFileSync(path.join(dir, runs.at(-1)), "utf8");
 	const line = (label) => {
 		const m = text.match(new RegExp(`${label}[^:]*: (\\d+)/(\\d+) = ([\\d.]+)% \\(([\\d.]+) to ([\\d.]+)\\)`));
