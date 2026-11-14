@@ -1,0 +1,72 @@
+# GitHub Action: check the references of one or more manuscripts on each push or pull request.
+#
+#   - uses: actions/checkout@v4
+#   - uses: tiagojct/starbuck@v0.3.0
+#     with:
+#       manuscripts: paper.qmd
+#       email: ${{ vars.STARBUCK_EMAIL }}
+#
+# The job fails when a reference fails (exit code 1) or the check cannot run (2). The
+# reports are uploaded as an artifact named starbuck-reports.
+name: Starbuck reference check
+description: Check that cited works exist, match their citations and are not retracted.
+branding:
+  icon: book-open
+  color: blue
+inputs:
+  manuscripts:
+    description: Markdown or Quarto files, separated by spaces.
+    required: true
+  args:
+    description: More arguments for starbuck check, for example --all-entries.
+    required: false
+    default: ""
+  email:
+    description: Contact address for the services (faster and more reliable access).
+    required: false
+    default: ""
+  fail-on-check:
+    description: Also fail when a reference needs checking (Check), not only on Fail.
+    required: false
+    default: "false"
+  version:
+    description: "Starbuck version to install (default: the version of this action)."
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+    - id: run
+      shell: bash
+      env:
+        STARBUCK_EMAIL: ${{ inputs.email }}
+        STARBUCK_NO_CACHE: "1"
+        MANUSCRIPTS: ${{ inputs.manuscripts }}
+        ARGS: ${{ inputs.args }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        spec="starbuck${VERSION:+==$VERSION}"
+        if [ -z "$VERSION" ] && [ -f "$GITHUB_ACTION_PATH/pyproject.toml" ]; then spec="$GITHUB_ACTION_PATH"; fi
+        set +e
+        # shellcheck disable=SC2086
+        uvx --from "$spec" starbuck check $MANUSCRIPTS --to html --out starbuck-reports $ARGS | tee starbuck-summary.txt
+        code=${PIPESTATUS[0]}
+        set -e
+        { echo '## Starbuck reference check'; echo; echo '```text'; cat starbuck-summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: starbuck-reports
+        path: starbuck-reports
+        if-no-files-found: ignore
+    - shell: bash
+      env:
+        CODE: ${{ steps.run.outputs.code }}
+        STRICT: ${{ inputs.fail-on-check }}
+      run: |
+        if [ "$CODE" = "1" ] || [ "$CODE" = "2" ]; then exit "$CODE"; fi
+        if [ "$STRICT" = "true" ] && grep -qE '^  Check ' starbuck-summary.txt; then
+          echo "Some references need checking."; exit 1
+        fi

@@ -8,7 +8,11 @@ import unicodedata
 from difflib import SequenceMatcher
 from urllib.parse import unquote
 
-DOI_RE = re.compile(r"10\.\d{4,9}/[^\s\"'<>|\\{}]+", re.IGNORECASE)
+# Old DOIs (SICI: Wiley, AMS and others) hold a part in angle brackets with a colon inside,
+# for example 10.1002/(SICI)1097-0258(19980815/30)17:15/16<1661::AID-SIM968>3.0.CO;2-2.
+# Other angle brackets (HTML tags, <https://...> autolinks) end the DOI.
+DOI_BODY = r"10\.\d{4,9}/(?:[^\s\"'<>|\\{}]|<[\w.+\-]*:[\w.:+\-]*>)+"
+DOI_RE = re.compile(DOI_BODY, re.IGNORECASE)
 PMID_RE = re.compile(
     r"(?:\bPMID\s*:?\s*|pubmed\.ncbi\.nlm\.nih\.gov/|ncbi\.nlm\.nih\.gov/pubmed/)(\d{1,9})\b", re.IGNORECASE)
 PMCID_RE = re.compile(r"\b(PMC\d{4,9})\b", re.IGNORECASE)
@@ -122,9 +126,18 @@ def find_ids(text: str) -> dict[str, str]:
             break
     bare = DOI_RE.sub(" ", URL_RE.sub(" ", text))
     bare = PMID_RE.sub(" ", ARXIV_RE.sub(" ", ISBN_RE.sub(" ", bare)))
-    if m := re.search(r"(?<![\d.])(1[5-9]\d\d|20\d\d)(?![\d.]\d)", bare):
-        out["year"] = m.group(1)
+    if years := YEAR_RE.findall(bare):
+        out["year"] = years[0]
     return out
+
+
+YEAR_RE = re.compile(r"(?<![\d.])(1[5-9]\d\d|20\d\d)(?![\d.]\d)")
+
+
+def find_years(text: str) -> list[str]:
+    """Every number of a free-text entry that can be a year, identifiers and links left out."""
+    bare = DOI_RE.sub(" ", URL_RE.sub(" ", text or ""))
+    return YEAR_RE.findall(PMID_RE.sub(" ", ARXIV_RE.sub(" ", ISBN_RE.sub(" ", bare))))
 
 
 # ---------------------------------------------------------------- text
@@ -193,3 +206,39 @@ def same_name(a: str | None, b: str | None) -> bool:
         return False
     # "van der Berg" vs "Berg", "Silva" vs "da Silva": accept when one ends with the other.
     return sa == sb or (len(min(sa, sb, key=len)) >= 4 and (sa.endswith(sb) or sb.endswith(sa)))
+
+
+def name_in_text(name: str | None, text: str | None) -> bool:
+    """Whether a family name is written in a free-text entry.
+
+    The words of the name must stand together ("van der Berg", "Smith-Jones", "O'Brien"),
+    or as one word ("OBrien"), or the entry has the last word of the name ("Berg J van der").
+    Short names that are also common words ("An", "To") count: the stop list is not used.
+    """
+    want = re.findall(r"[a-z0-9]+", fold(plain(name)))
+    have = re.findall(r"[a-z0-9]+", fold(plain(text)))
+    if not want:
+        return False
+    n = len(want)
+    if any(have[i:i + n] == want for i in range(len(have) - n + 1)) or "".join(want) in have:
+        return True
+    return n > 1 and len(want[-1]) >= 4 and want[-1] in have
+
+
+def _author_list(part: str) -> bool:
+    chunks = [c.strip() for c in re.split(r",|;|\band\b|&", part) if c.strip()]
+    return len(chunks) >= 2 and all(len(c.split()) <= 3 for c in chunks) or bool(re.search(r"\bet al\b", part))
+
+
+def guess_title(entry: str) -> str:
+    """The title of a free-text reference: the longest part between full stops that is not
+    the author list or the journal details.
+
+    "Smith J, Doe K. A trial of X in Y. Lancet. 2020;1:2-3." gives "A trial of X in Y".
+    Identifiers and links must be removed first. Returns "" when no part has four words.
+    """
+    parts = re.split(r"[.?!]\s+|\s+[\u2013\u2014]\s+|\s*\n\s*", entry or "")
+    parts = [re.sub(r"^\s*\[?\d+[.)\]]\s*", "", x).strip(" .,;\"'\u201c\u201d") for x in parts]
+    good = [x for x in parts if len(x.split()) >= 4 and not _author_list(x)
+            and not re.search(r"\d{4}\s*[;:(]\s*\d", x)]
+    return max(good, key=len) if good else ""

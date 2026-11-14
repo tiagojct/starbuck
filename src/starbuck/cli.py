@@ -4,7 +4,10 @@
     starbuck check paper.qmd --to html,docx   also render Word
     starbuck check paper.md --bib refs.bib    bibliography not named in the YAML header
     starbuck check paper.qmd --claims         also level 4 (needs STARBUCK_JUDGE_URL and _MODEL)
+    starbuck check a.qmd b.qmd --if-cited     several files; skip files without citations
+    starbuck fix paper.qmd                    propose corrections to the bibliography (a diff)
     starbuck ids 10.1183/09031936.00080312 arXiv:1706.03762
+    starbuck cache --clear                    empty the cache of service answers
 
 Exit codes: 0 nothing failed; 1 at least one reference failed or a cited key has
 no entry; 2 the check could not run; 3 nothing failed, but some checks did not
@@ -17,18 +20,22 @@ import argparse
 import asyncio
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
 import httpx
 
 from . import __version__
+from .cache import DiskCache
 from .check import check_document, check_given
-from .claims import apply, judge, judge_settings, not_run, prepare, validate
-from .parse import ParseError, read_manuscript, references_from_identifiers
+from .claims import apply, combine, judge, judge_settings, not_run, prepare, validate
+from .parse import ParseError, iso_date, read_manuscript, references_from_identifiers
 from .render import RenderError, render
 from .report import report_stem, to_text, write_outputs
+from .fix import add_fix_parser, run_fix
 from .sources import Sources
+from .zotero import ZoteroLibrary
 
 
 def settings(env: dict[str, str] | None = None) -> dict[str, str | None]:
@@ -41,11 +48,20 @@ def settings(env: dict[str, str] | None = None) -> dict[str, str | None]:
 
 
 def make_sources(email: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
-                 pacing: bool = True) -> Sources:
+                 pacing: bool = True, cache: bool | None = None) -> Sources:
+    """The service clients. The disk cache is on for real runs and off when a transport is given
+    (tests, validation recordings and replays), unless `cache` says otherwise."""
     s = settings()
+    use_cache = (transport is None and not os.environ.get("STARBUCK_NO_CACHE")) if cache is None else cache
+    disk = None
+    if use_cache:
+        try:
+            disk = DiskCache()
+        except (OSError, sqlite3.Error) as exc:
+            print(f"starbuck: the cache cannot be used ({exc}); every answer is asked again.", file=sys.stderr)
     return Sources(email=email or s["email"], ncbi_api_key=s["ncbi_api_key"],
                    openalex_api_key=s["openalex_api_key"], transport=transport, pacing=pacing,
-                   retry_delay=1.5 if pacing else 0.0)
+                   retry_delay=1.5 if pacing else 0.0, cache=disk)
 
 
 def exit_code(result: dict) -> int:
@@ -57,12 +73,31 @@ def exit_code(result: dict) -> int:
     return 0
 
 
+PRIORITY = [0, 3, 1, 2]  # for several manuscripts: the exit code of the worst one
+
+
 async def run_check(args: argparse.Namespace, transport: httpx.AsyncBaseTransport | None = None) -> int:
+    codes = []
+    for manuscript in args.manuscript:
+        if len(args.manuscript) > 1 and not args.quiet:
+            print(f"== {manuscript}", file=sys.stderr)
+        codes.append(await check_one(manuscript, args, transport))
+    return max(codes, key=PRIORITY.index)
+
+
+async def check_one(manuscript: str, args: argparse.Namespace,
+                    transport: httpx.AsyncBaseTransport | None = None) -> int:
     try:
-        doc = read_manuscript(args.manuscript, args.bib or None)
+        doc = read_manuscript(manuscript, args.bib or None)
     except ParseError as exc:
         print(f"starbuck: {exc}", file=sys.stderr)
         return 2
+    if args.date:
+        doc.date = iso_date(args.date)
+    if doc.style == "none" and args.if_cited:
+        if not args.quiet:
+            print(f"starbuck: {manuscript}: no citations; skipped.", file=sys.stderr)
+        return 0
     if doc.style == "none":
         print("starbuck: no citations found. Starbuck reads [@key] citations with a bibliography, or numbered "
               "[1] citations with a numbered list under a References or Sources heading.", file=sys.stderr)
@@ -84,8 +119,16 @@ async def run_check(args: argparse.Namespace, transport: httpx.AsyncBaseTranspor
             return 2
         texts[key] = path
     settings = judge_settings() if args.claims else None
+    second = judge_settings(prefix="STARBUCK_JUDGE2") if settings else None
+    zotero = None
+    if args.claims and args.zotero is not None:
+        try:
+            zotero = ZoteroLibrary(args.zotero or None)
+        except (OSError, sqlite3.Error) as exc:
+            print(f"starbuck: Zotero library not used: {exc}", file=sys.stderr)
     prepared = None
-    async with make_sources(args.email, transport, pacing=transport is None) as src:
+    async with make_sources(args.email, transport, pacing=transport is None,
+                            cache=False if args.no_cache else None) as src:
         result = await check_document(doc, src, include_uncited=args.all_entries, progress=progress)
         if not args.claims:
             not_run(result, "not requested (starbuck check --claims)")
@@ -96,13 +139,21 @@ async def run_check(args: argparse.Namespace, transport: httpx.AsyncBaseTranspor
         else:
             if not args.quiet:
                 print(f"Level 4: preparing {len(doc.citations)} citations ...", file=sys.stderr)
-            prepared = await prepare(doc, result, src, texts)
+            prepared = await prepare(doc, result, src, texts, zotero)
     if prepared is not None:
         if not args.quiet:
             ready = sum(c["status"] == "ready" for c in prepared["claims"])
             print(f"Level 4: {ready} citing sentences to {settings['model']} ...", file=sys.stderr)
         verdicts = await judge(prepared["claims"], settings, transport)
-        apply(result, validate(prepared, verdicts), settings["model"])
+        final, judged_by = validate(prepared, verdicts), settings["model"]
+        if second:
+            if not args.quiet:
+                print(f"Level 4: the same sentences to {second['model']} ...", file=sys.stderr)
+            verdicts2 = await judge(prepared["claims"], second, transport)
+            final = combine(final, validate(prepared, verdicts2))
+            judged_by = f"{settings['model']} and {second['model']}"
+            verdicts = {"first": verdicts, "second": verdicts2}
+        apply(result, final, judged_by)
     out_dir = Path(args.out).expanduser() if args.out else Path(doc.path).parent / "_starbuck"
     paths = write_outputs(result, out_dir, report_stem(doc.path))
     if prepared is not None:
@@ -123,7 +174,8 @@ async def run_check(args: argparse.Namespace, transport: httpx.AsyncBaseTranspor
 
 async def run_ids(args: argparse.Namespace, transport: httpx.AsyncBaseTransport | None = None) -> int:
     refs = references_from_identifiers([{"identifier": i} for i in args.identifiers])
-    async with make_sources(args.email, transport, pacing=transport is None) as src:
+    async with make_sources(args.email, transport, pacing=transport is None,
+                            cache=False if args.no_cache else None) as src:
         result = await check_given(refs, src)
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -142,7 +194,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"starbuck {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
     c = sub.add_parser("check", help="check the references of a Markdown or Quarto manuscript")
-    c.add_argument("manuscript")
+    c.add_argument("manuscript", nargs="+", help="Markdown or Quarto files; several are checked one by one")
     c.add_argument("--bib", action="append", help="bibliography file (.bib, .json, .yaml); repeat for several")
     c.add_argument("--out", help="folder for the report (default: _starbuck next to the manuscript)")
     c.add_argument("--to", default="html", help="formats to render: html, docx or html,docx; empty for none")
@@ -153,18 +205,45 @@ def parser() -> argparse.ArgumentParser:
                         "sentences to the model at STARBUCK_JUDGE_URL")
     c.add_argument("--text", action="append", metavar="KEY=FILE",
                    help="level 4: full text of a cited work as a local text file; repeat for several")
+    c.add_argument("--zotero", nargs="?", const="", metavar="DIR",
+                   help="level 4: take full texts from the local Zotero library (default ~/Zotero or "
+                        "STARBUCK_ZOTERO_DIR); the library is read, never changed")
+    c.add_argument("--date", help="manuscript date (YYYY-MM-DD) for notices; default: date: in the YAML header")
+    c.add_argument("--if-cited", action="store_true",
+                   help="skip files without citations (exit 0), for pre-commit hooks")
+    c.add_argument("--no-cache", action="store_true", help="ask every service again; do not use the cache")
     c.add_argument("--quiet", action="store_true")
     i = sub.add_parser("ids", help="check identifiers directly (DOI, PMID, arXiv ID, ISBN)")
     i.add_argument("identifiers", nargs="+")
     i.add_argument("--json", action="store_true")
     i.add_argument("--email")
+    i.add_argument("--no-cache", action="store_true")
+    k = sub.add_parser("cache", help="show or empty the cache of service answers")
+    k.add_argument("--clear", action="store_true", help="delete every kept answer")
+    add_fix_parser(sub)
     return p
+
+
+def run_cache(args: argparse.Namespace) -> int:
+    disk = DiskCache()
+    if args.clear:
+        print(f"Removed {disk.clear()} answers from {disk.path}.")
+    else:
+        n = disk.db.execute("SELECT COUNT(*) FROM answers").fetchone()[0]
+        print(f"{disk.path}: {n} answers. Set STARBUCK_CACHE_DIR to move it, STARBUCK_NO_CACHE=1 to turn it off.")
+    disk.close()
+    return 0
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
     try:
-        code = asyncio.run(run_check(args) if args.command == "check" else run_ids(args))
+        if args.command == "cache":
+            code = run_cache(args)
+        elif args.command == "fix":
+            code = asyncio.run(run_fix(args))
+        else:
+            code = asyncio.run(run_check(args) if args.command == "check" else run_ids(args))
     except KeyboardInterrupt:
         code = 2
     sys.exit(code)

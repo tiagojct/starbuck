@@ -28,6 +28,8 @@ jobs:
             echo "starbuck $v is already on PyPI; nothing to publish."
           fi
       - if: steps.version.outputs.published != 'true'
+        run: uv sync && uv run pytest -q
+      - if: steps.version.outputs.published != 'true'
         run: uv build && uv publish --trusted-publishing always
       - if: steps.version.outputs.published != 'true'
         run: |

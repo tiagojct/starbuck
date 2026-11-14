@@ -284,3 +284,91 @@ async def test_apply_adds_overcitation_and_scores(prepared):
     assert "Citation recall is the share" in qmd
     from starbuck.report import to_text
     assert "Citation recall: 1/1 (100%) of sentences" in to_text(result)
+
+
+# ---------------------------------------------------------------- 0.3.0: numbers, two judges, PDFs, Zotero
+
+from starbuck.claims import claim_numbers, combine, missing_numbers  # noqa: E402
+
+
+def test_claim_numbers_and_missing_numbers():
+    s = "FEV1 fell by 35% in 1,200 adults over 3 years since 2010, with a mean of 2.40 L [@a]."
+    assert claim_numbers(s) == ["35", "1200", "2.4"]
+    assert missing_numbers(s, "Of 1200 adults, FEV1 fell by 35 % ... mean 2.4 L") == []
+    assert missing_numbers(s, "FEV1 fell by 0.35 in 1,200 adults; mean 2.4 L") == []
+    assert missing_numbers(s, "FEV1 fell by 30% in 1,200 adults; mean 2.4 L") == ["35"]
+
+
+def _row(i, verdict, by):
+    return {"id": i, "key": "k", "line": 1, "sentence": "S", "basis": "abstract", "source": "x",
+            "verdict": verdict, "quote": "", "reason": "", "judged": True, "judged_by": by}
+
+
+def test_two_judges_keep_the_less_supportive_verdict():
+    a = [_row("c1", "supported", "m1"), _row("c2", "supported", "m1"), _row("c3", "cannot_assess", "m1")]
+    b = [_row("c1", "supported", "m2"), _row("c2", "not_supported", "m2"), _row("c3", "partly_supported", "m2")]
+    out = {r["id"]: r for r in combine(a, b)}
+    assert out["c1"]["verdict"] == "supported" and not out["c1"].get("disagreement")
+    assert out["c2"]["verdict"] == "not_supported" and out["c2"]["disagreement"]
+    assert out["c2"]["judges"] == {"m1": "supported", "m2": "not_supported"}
+    assert out["c3"]["verdict"] == "partly_supported" and out["c3"]["disagreement"]
+
+
+def test_supported_verdict_with_a_number_missing_from_the_full_text_is_downgraded():
+    from starbuck.claims import validate
+    text = "The equations were derived from 74,187 records of healthy non-smokers from 26 countries."
+    prepared = {"texts": {"k": {"text": text}}, "claims": [
+        {"id": "c1", "key": "k", "line": 3, "sentence": "Data came from 80,000 people in 26 countries [@k].",
+         "basis": "full text", "source": "x", "status": "ready", "reason": ""}]}
+    row = validate(prepared, {"c1": {"verdict": "supported", "quote": "records of healthy non-smokers from 26 countries"}})[0]
+    assert row["verdict"] == "partly_supported"
+    assert row["numbers_missing"] == ["80000"]
+    assert row["number_check"] == "downgraded"
+
+
+def test_document_passages_cut_the_reference_list():
+    from starbuck.evidence import document_passages
+    body = "\n\n".join(f"Paragraph {i} about spirometry in adults with asthma." for i in range(8))
+    text, passages = document_passages(body + "\n\nReferences\n\n1. Smith J. Spirometry in adults. 2020.\n")
+    assert "Smith J" not in text and len(passages) == 8
+
+
+async def test_arxiv_pdf_is_used_as_full_text(src, monkeypatch):
+    from starbuck import evidence
+    from starbuck.models import Reference
+
+    async def fake_pdf(url, service):
+        assert url == "https://export.arxiv.org/pdf/1706.03762"
+        return ("The Transformer uses attention only. " * 30 + "\n\n") * 4
+    monkeypatch.setattr(src, "pdf_text", fake_pdf)
+    ref = Reference(key="v", kind="csl", title="Attention Is All You Need", arxiv="1706.03762")
+    st = await evidence.source_text(ref, {"exists": {"status": "found"}}, src)
+    assert st["basis"] == "full text" and st["source"] == "arXiv PDF 1706.03762"
+
+
+def test_zotero_library_gives_the_full_text_cache(tmp_path):
+    import sqlite3
+    from starbuck.zotero import ZoteroLibrary
+    con = sqlite3.connect(tmp_path / "zotero.sqlite")
+    con.executescript("""
+    CREATE TABLE fields (fieldID INT, fieldName TEXT);
+    CREATE TABLE itemDataValues (valueID INT, value TEXT);
+    CREATE TABLE itemData (itemID INT, fieldID INT, valueID INT);
+    CREATE TABLE items (itemID INT, key TEXT);
+    CREATE TABLE itemAttachments (itemID INT, parentItemID INT, contentType TEXT, path TEXT);
+    INSERT INTO fields VALUES (1, 'DOI'), (2, 'title');
+    INSERT INTO itemDataValues VALUES (1, '10.1183/09031936.00080312'), (2, 'Standardisation of spirometry in adults');
+    INSERT INTO itemData VALUES (10, 1, 1), (20, 2, 2);
+    INSERT INTO items VALUES (11, 'AAAA1111'), (21, 'BBBB2222');
+    INSERT INTO itemAttachments VALUES (11, 10, 'application/pdf', 'storage:a.pdf'),
+                                       (21, 20, 'application/pdf', 'storage:b.pdf');
+    """)
+    con.commit()
+    con.close()
+    for key in ("AAAA1111", "BBBB2222"):
+        (tmp_path / "storage" / key).mkdir(parents=True)
+        (tmp_path / "storage" / key / ".zotero-ft-cache").write_text(f"{key} words " * 150)
+    z = ZoteroLibrary(tmp_path)
+    assert z.text(doi="10.1183/09031936.00080312")[1] == "Zotero full text (AAAA1111)"
+    assert z.text(title="Standardisation of Spirometry in Adults")[0].startswith("BBBB2222")
+    assert z.text(doi="10.1000/none") is None

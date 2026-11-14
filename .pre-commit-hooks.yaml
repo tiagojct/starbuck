@@ -1,0 +1,17 @@
+# pre-commit hook. In .pre-commit-config.yaml of a manuscript repository:
+#
+#   repos:
+#     - repo: https://github.com/tiagojct/starbuck
+#       rev: v0.3.0
+#       hooks:
+#         - id: starbuck
+#
+# The hook checks each changed Markdown or Quarto file that has citations. It writes no
+# rendered report (--to "") and stops the commit when a reference fails.
+- id: starbuck
+  name: starbuck reference check
+  description: Check that cited works exist, match their citations and are not retracted.
+  entry: starbuck check --to "" --quiet --if-cited
+  language: python
+  files: \.(qmd|md|markdown|rmd)$
+  require_serial: true

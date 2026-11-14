@@ -28,6 +28,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 
 from . import APP_NAME, __version__
+from .cache import MISSING, DiskCache
 from .ids import norm_doi, norm_isbn, plain
 
 CROSSREF = "https://api.crossref.org"
@@ -37,9 +38,16 @@ EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 OPENALEX = "https://api.openalex.org"
 ARXIV = "https://export.arxiv.org/api/query"
 OPENLIBRARY = "https://openlibrary.org"
+WAYBACK = "https://archive.org/wayback/available"
+UNPAYWALL = "https://api.unpaywall.org/v2"
 EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 ATOM = {"a": "http://www.w3.org/2005/Atom", "x": "http://arxiv.org/schemas/atom"}
 
+ATTEMPTS = 4
+# An answer that is not what the service documents (an HTML error page with status 200, cut-off
+# JSON or XML). It counts as a service failure for that reference; it must not stop the run.
+UNREADABLE = (ValueError, KeyError, TypeError, AttributeError, IndexError, ET.ParseError)
+# Crossref polite pool (with mailto): concurrency 3; the public pool allows 1 (see _sem).
 PARALLEL = {"api.crossref.org": 3, "eutils.ncbi.nlm.nih.gov": 1, "export.arxiv.org": 1}
 
 
@@ -58,7 +66,8 @@ def _first(value: Any) -> str:
 class Sources:
     def __init__(self, email: str | None = None, ncbi_api_key: str | None = None,
                  openalex_api_key: str | None = None, transport: httpx.AsyncBaseTransport | None = None,
-                 timeout: float = 30.0, pacing: bool = True, retry_delay: float = 1.5) -> None:
+                 timeout: float = 30.0, pacing: bool = True, retry_delay: float = 1.5,
+                 cache: DiskCache | None = None) -> None:
         self.email = email
         self.ncbi_api_key = ncbi_api_key
         self.openalex_api_key = openalex_api_key
@@ -69,13 +78,17 @@ class Sources:
         self._locks: dict[str, asyncio.Lock] = {}
         self._last: dict[str, float] = {}
         self._cache: dict[str, Any] = {}
+        self._making: dict[str, asyncio.Lock] = {}
         self.intervals = {"eutils.ncbi.nlm.nih.gov": 0.11 if ncbi_api_key else 0.34,
                           "export.arxiv.org": 3.0} if pacing else {}
         self.used: set[str] = set()
         self.retry_delay = retry_delay
+        self.disk = cache
 
     async def aclose(self) -> None:
         await self.http.aclose()
+        if self.disk:
+            self.disk.close()
 
     async def __aenter__(self) -> "Sources":
         return self
@@ -87,7 +100,10 @@ class Sources:
 
     def _sem(self, host: str) -> asyncio.Semaphore:
         if host not in self._sems:
-            self._sems[host] = asyncio.Semaphore(PARALLEL.get(host, 4))
+            n = PARALLEL.get(host, 4)
+            if host == "api.crossref.org" and not self.email:
+                n = 1  # public pool: concurrency 1 (Crossref limits, 2025-12)
+            self._sems[host] = asyncio.Semaphore(n)
         return self._sems[host]
 
     async def _pace(self, host: str) -> None:
@@ -107,29 +123,53 @@ class Sources:
         self.used.add(service)
         async with self._sem(host):
             last = ""
-            for attempt in range(4):
+            for attempt in range(ATTEMPTS):
                 await self._pace(host)
                 try:
                     r = await self.http.get(url, params=params)
                 except httpx.HTTPError as exc:
                     last = f"{type(exc).__name__}: {exc}"
-                    await asyncio.sleep(self.retry_delay * (attempt + 1))
+                    if attempt < ATTEMPTS - 1:
+                        await asyncio.sleep(self.retry_delay * (attempt + 1))
                     continue
                 if r.status_code == 429 or r.status_code >= 500:
                     wait = r.headers.get("Retry-After")
                     last = f"HTTP {r.status_code}"
                     delay = min(float(wait), 30.0) if wait and wait.isdigit() else self.retry_delay * 1.5 * (attempt + 1)
-                    await asyncio.sleep(delay if self.retry_delay else 0)
+                    if attempt < ATTEMPTS - 1:
+                        await asyncio.sleep(delay if self.retry_delay else 0)
                     continue
                 if r.status_code not in ok:
                     raise ServiceError(service, f"HTTP {r.status_code}")
                 return r
             raise ServiceError(service, f"not reachable ({last})")
 
-    async def _cached(self, key: str, make):
-        if key not in self._cache:
-            self._cache[key] = await make()
+    async def _cached(self, key: str, make, service: str = ""):
+        # One lock for each key: two references with the same identifier make one request.
+        async with self._making.setdefault(key, asyncio.Lock()):
+            if key not in self._cache:
+                if self.disk and (kept := self.disk.get(key)) is not MISSING:
+                    self._cache[key] = kept
+                    return kept
+                try:
+                    self._cache[key] = await make()
+                except UNREADABLE as exc:
+                    raise ServiceError(service or "service", f"unreadable answer ({type(exc).__name__})") from exc
+                if self.disk:
+                    self.disk.set(key, self._cache[key])
         return self._cache[key]
+
+    def _from_disk(self, keys: list[str]) -> None:
+        """Batch lookups (PubMed, arXiv): fill the memory cache from the disk cache."""
+        if not self.disk:
+            return
+        for k in keys:
+            if k not in self._cache and (kept := self.disk.get(k)) is not MISSING:
+                self._cache[k] = kept
+
+    def _to_disk(self, key: str) -> None:
+        if self.disk:
+            self.disk.set(key, self._cache[key])
 
     # ------------------------------------------------------------ Crossref
 
@@ -140,14 +180,14 @@ class Sources:
         async def make():
             r = await self._get("Crossref", f"{CROSSREF}/works/{quote(doi, safe='/:;()')}", self._cr())
             return None if r.status_code == 404 else from_crossref(r.json()["message"])
-        return await self._cached(f"cr:{doi}", make)
+        return await self._cached(f"cr:{doi}", make, "Crossref")
 
     async def crossref_search(self, bibliographic: str, rows: int = 5) -> list[dict]:
         async def make():
             r = await self._get("Crossref", f"{CROSSREF}/works",
                                 self._cr({"query.bibliographic": bibliographic[:500], "rows": rows}), ok=(200,))
             return [from_crossref(m) for m in r.json()["message"].get("items", [])]
-        return await self._cached(f"crs:{bibliographic}:{rows}", make)
+        return await self._cached(f"crs:{bibliographic}:{rows}", make, "Crossref")
 
     async def crossref_updates(self, doi: str) -> list[dict]:
         """Notices that update this DOI: retraction, correction, expression of concern, withdrawal..."""
@@ -164,7 +204,7 @@ class Sources:
                                     "date": "-".join(f"{p:02d}" if i else str(p)
                                                      for i, p in enumerate(x for x in parts[0] if x))})
             return out
-        return await self._cached(f"cru:{doi}", make)
+        return await self._cached(f"cru:{doi}", make, "Crossref")
 
     # ------------------------------------------------------------ DataCite and DOI handles
 
@@ -172,7 +212,7 @@ class Sources:
         async def make():
             r = await self._get("DataCite", f"{DATACITE}/dois/{quote(doi, safe='/:;()')}")
             return None if r.status_code == 404 else from_datacite(r.json().get("data") or {})
-        return await self._cached(f"dc:{doi}", make)
+        return await self._cached(f"dc:{doi}", make, "DataCite")
 
     async def doi_registered(self, doi: str) -> bool:
         """Whether the DOI exists at all (any registration agency)."""
@@ -198,14 +238,19 @@ class Sources:
 
     async def pubmed_fetch(self, pmids: list[str]) -> dict[str, dict]:
         """PMID -> record, for the PMIDs PubMed knows."""
+        self._from_disk([f"pm:{p}" for p in pmids])
         todo = [p for p in dict.fromkeys(pmids) if f"pm:{p}" not in self._cache]
         for i in range(0, len(todo), 100):
             chunk = todo[i : i + 100]
             r = await self._get("PubMed", f"{EUTILS}/efetch.fcgi",
                                 self._ncbi({"db": "pubmed", "id": ",".join(chunk), "retmode": "xml"}), ok=(200,))
-            found = {rec["pmid"]: rec for rec in parse_pubmed_xml(r.text)}
+            try:
+                found = {rec["pmid"]: rec for rec in parse_pubmed_xml(r.text)}
+            except UNREADABLE as exc:
+                raise ServiceError("PubMed", f"unreadable answer ({type(exc).__name__})") from exc
             for p in chunk:
                 self._cache[f"pm:{p}"] = found.get(p)
+                self._to_disk(f"pm:{p}")
         return {p: rec for p in pmids if (rec := self._cache.get(f"pm:{p}"))}
 
     # ------------------------------------------------------------ OpenAlex
@@ -220,18 +265,23 @@ class Sources:
                       **({"api_key": self.openalex_api_key} if self.openalex_api_key else {})}
             r = await self._get("OpenAlex", f"{OPENALEX}/works/{path}", params)
             return None if r.status_code == 404 else from_openalex(r.json())
-        return await self._cached(f"oa:{path}", make)
+        return await self._cached(f"oa:{path}", make, "OpenAlex")
 
     # ------------------------------------------------------------ arXiv
 
     async def arxiv_works(self, ids: list[str]) -> dict[str, dict]:
+        self._from_disk([f"ax:{a}" for a in ids])
         todo = [a for a in dict.fromkeys(ids) if f"ax:{a}" not in self._cache]
         for i in range(0, len(todo), 50):
             chunk = todo[i : i + 50]
             r = await self._get("arXiv", ARXIV, {"id_list": ",".join(chunk), "max_results": len(chunk)}, ok=(200,))
-            found = {rec["arxiv"]: rec for rec in parse_arxiv_atom(r.text)}
+            try:
+                found = {rec["arxiv"]: rec for rec in parse_arxiv_atom(r.text)}
+            except UNREADABLE as exc:
+                raise ServiceError("arXiv", f"unreadable answer ({type(exc).__name__})") from exc
             for a in chunk:
                 self._cache[f"ax:{a}"] = found.get(a)
+                self._to_disk(f"ax:{a}")
         return {a: rec for a in ids if (rec := self._cache.get(f"ax:{a}"))}
 
     # ------------------------------------------------------------ Europe PMC (level 4)
@@ -251,14 +301,14 @@ class Sources:
             r = await self._get("Europe PMC", f"{EUROPEPMC}/search", params, ok=(200,))
             hits = (r.json().get("resultList") or {}).get("result") or []
             return from_europepmc(hits[0]) if hits else None
-        return await self._cached(f"epmc:{query}", make)
+        return await self._cached(f"epmc:{query}", make, "Europe PMC")
 
     async def europepmc_fulltext(self, pmcid: str) -> str | None:
         """Open-access full text as JATS XML, or None when Europe PMC has none."""
         async def make():
             r = await self._get("Europe PMC", f"{EUROPEPMC}/{quote(pmcid)}/fullTextXML", ok=(200, 404))
             return None if r.status_code == 404 else r.text
-        return await self._cached(f"epmcft:{pmcid}", make)
+        return await self._cached(f"epmcft:{pmcid}", make, "Europe PMC")
 
     # ------------------------------------------------------------ Open Library and web pages
 
@@ -269,7 +319,7 @@ class Sources:
                                 {"bibkeys": key, "format": "json", "jscmd": "data"}, ok=(200,))
             data = r.json().get(key)
             return from_openlibrary(data, isbn) if data else None
-        return await self._cached(f"ol:{isbn}", make)
+        return await self._cached(f"ol:{isbn}", make, "Open Library")
 
     async def url_status(self, url: str) -> int:
         """HTTP status of a web page (after redirects). Only the first bytes are read."""
@@ -283,6 +333,107 @@ class Sources:
                 except httpx.HTTPError as exc:
                     raise ServiceError("web", f"{type(exc).__name__}") from exc
         return await self._cached(f"url:{url}", make)
+
+
+    # ------------------------------------------------------------ searches without an identifier
+
+    async def pubmed_search(self, title: str, author: str = "", rows: int = 5) -> list[dict]:
+        """PubMed records for a title (best match first), then fetched in full."""
+        term = title[:300] + (f" AND {author}[au]" if author else "")
+
+        async def make():
+            r = await self._get("PubMed", f"{EUTILS}/esearch.fcgi",
+                                self._ncbi({"db": "pubmed", "term": term, "retmax": rows, "sort": "relevance",
+                                            "retmode": "json"}), ok=(200,))
+            return [str(x) for x in (r.json().get("esearchresult") or {}).get("idlist") or []]
+        pmids = await self._cached(f"pms:{term}:{rows}", make, "PubMed")
+        found = await self.pubmed_fetch(pmids) if pmids else {}
+        return [found[p] for p in pmids if p in found]
+
+    async def openalex_search(self, title: str, rows: int = 5) -> list[dict]:
+        async def make():
+            params = {"search": title[:300], "per-page": rows,
+                      **({"mailto": self.email} if self.email else {}),
+                      **({"api_key": self.openalex_api_key} if self.openalex_api_key else {})}
+            r = await self._get("OpenAlex", f"{OPENALEX}/works", params, ok=(200,))
+            return [from_openalex(w) for w in r.json().get("results") or []]
+        return await self._cached(f"oas:{title}:{rows}", make, "OpenAlex")
+
+    async def datacite_search(self, title: str, rows: int = 5) -> list[dict]:
+        async def make():
+            r = await self._get("DataCite", f"{DATACITE}/dois", {"query": title[:300], "page[size]": rows},
+                                ok=(200,))
+            return [from_datacite(d) for d in r.json().get("data") or []]
+        return await self._cached(f"dcs:{title}:{rows}", make, "DataCite")
+
+    async def openlibrary_search(self, title: str, author: str = "", rows: int = 5) -> list[dict]:
+        async def make():
+            params = {"title": title[:300], "limit": rows,
+                      "fields": "key,title,subtitle,author_name,first_publish_year,isbn,publisher",
+                      **({"author": author} if author else {})}
+            r = await self._get("Open Library", f"{OPENLIBRARY}/search.json", params, ok=(200,))
+            return [from_openlibrary_search(d) for d in r.json().get("docs") or []]
+        return await self._cached(f"ols:{title}:{author}:{rows}", make, "Open Library")
+
+    async def pmcid_ids(self, pmcid: str) -> dict:
+        """PMID and DOI of a PMCID (Europe PMC), or {} when it is not known."""
+        async def make():
+            rec = await self.europepmc_work(pmcid=pmcid)
+            return {k: rec[k] for k in ("pmid", "doi") if rec and rec.get(k)}
+        return await self._cached(f"pmc:{pmcid.upper()}", make, "Europe PMC")
+
+    async def wayback(self, url: str) -> dict | None:
+        """The archived copy nearest to now in the Wayback Machine: {url, date}, or None."""
+        async def make():
+            r = await self._get("Wayback Machine", WAYBACK, {"url": url}, ok=(200,))
+            snap = ((r.json().get("archived_snapshots") or {}).get("closest") or {})
+            if not snap.get("available") or not snap.get("url"):
+                return None
+            ts = str(snap.get("timestamp") or "")
+            return {"url": snap["url"].replace("http://", "https://", 1),
+                    "date": f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}" if len(ts) >= 8 else ""}
+        return await self._cached(f"wb:{url}", make, "Wayback Machine")
+
+    # ------------------------------------------------------------ open-access copies (level 4)
+
+    async def unpaywall_pdf(self, doi: str) -> str | None:
+        """URL of an open-access PDF of the DOI (Unpaywall needs a contact address)."""
+        if not self.email:
+            return None
+
+        async def make():
+            r = await self._get("Unpaywall", f"{UNPAYWALL}/{quote(doi, safe='/:;()')}", {"email": self.email})
+            if r.status_code == 404:
+                return None
+            data = r.json()
+            locs = [data.get("best_oa_location") or {}] + list(data.get("oa_locations") or [])
+            return next((loc["url_for_pdf"] for loc in locs if loc and loc.get("url_for_pdf")), None)
+        return await self._cached(f"upw:{doi}", make, "Unpaywall")
+
+    async def pdf_text(self, url: str, service: str) -> str | None:
+        """The text of a PDF on the web (pypdf), or None when it is not a readable PDF."""
+        async def make():
+            r = await self._get(service, url, ok=(200, 403, 404))
+            if r.status_code != 200 or not r.content.startswith(b"%PDF"):
+                return None
+            return pdf_to_text(r.content)
+        return await self._cached(f"pdf:{url}", make, service)
+
+
+def pdf_to_text(data: bytes) -> str | None:
+    import io
+
+    from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        pages = [page.extract_text() or "" for page in reader.pages[:60]]
+    except (PyPdfError, ValueError, KeyError, TypeError, OSError):
+        return None
+    text = "\n\n".join(pages)
+    text = re.sub(r"-\n(?=[a-z])", "", text)  # words split at a line end
+    return text if len(text.split()) >= 200 else None
 
 
 # ---------------------------------------------------------------- parsers
@@ -315,6 +466,7 @@ def from_crossref(m: dict) -> dict:
         "container_abbr": _first(m.get("short-container-title")), "doi": norm_doi(m.get("DOI")) or "",
         "isbn": norm_isbn(_first(m.get("ISBN"))) or "", "url": m.get("URL") or "",
         "published_version": published or "",
+        "alt_titles": [t for t in (plain(x) for x in m.get("original-title") or []) if t],
         "abstract": plain(m.get("abstract")),
         # A work that itself updates another DOI is a notice (retraction, correction...).
         "notice_of": [{"doi": norm_doi(u.get("DOI")) or "", "type": (u.get("type") or "").lower()}
@@ -381,6 +533,7 @@ def parse_pubmed_xml(text: str) -> list[dict]:
             "pmid": mc.findtext("PMID") or "", "pmcid": pmcid,
             "publication_types": [pt.text or "" for pt in a.findall("PublicationTypeList/PublicationType")],
             "comments": comments, "abstract": abstract,
+            "alt_titles": [t for t in [_text(a.find("VernacularTitle")).rstrip(".")] if t],
         })
     return out
 
@@ -452,6 +605,18 @@ def from_openlibrary(d: dict, isbn: str) -> dict:
             "year": m.group(0) if m else "",
             "container": ", ".join(p.get("name", "") for p in d.get("publishers") or []),
             "isbn": isbn, "url": d.get("url") or ""}
+
+
+def from_openlibrary_search(d: dict) -> dict:
+    title = d.get("title") or ""
+    if d.get("subtitle"):
+        title = f"{title}: {d['subtitle']}"
+    isbns = [norm_isbn(i) for i in d.get("isbn") or []]
+    return {"source": "Open Library", "kind": "book", "title": title,
+            "authors": [{"family": "", "given": "", "name": n} for n in d.get("author_name") or []],
+            "year": str(d.get("first_publish_year") or ""),
+            "container": ", ".join((d.get("publisher") or [])[:1]),
+            "isbn": next((i for i in isbns if i), ""), "url": f"{OPENLIBRARY}{d.get('key') or ''}"}
 
 
 def family_of(person: dict) -> str:

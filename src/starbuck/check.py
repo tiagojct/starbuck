@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+from dataclasses import replace
 from typing import Any, Callable
 
 from . import __version__
-from .ids import ARXIV_RE, DOI_RE, PMID_RE, URL_RE, containment, same_name, slug, title_similarity, tokens
+from .ids import (ARXIV_RE, DOI_RE, PMID_RE, URL_RE, containment, find_years, guess_title, name_in_text,
+                  same_name, title_similarity, tokens)
 from .models import Document, Reference
 from .parse import MAX_UNCITED
 from .sources import ServiceError, Sources, family_of
@@ -34,6 +36,7 @@ YEAR_TOLERANCE = 1  # online-first vs print year
 RETRACTED = {"retraction", "withdrawal", "removal", "partial_retraction", "partial-retraction"}
 CONCERN = {"expression_of_concern", "expression-of-concern"}
 CORRECTED = {"correction", "erratum", "corrigendum", "addendum", "clarification"}
+BLOCKED = {401, 403, 429}  # web pages: the server answered, but not to a program
 ORDER = {"pass": 0, "note": 1, "warn": 2, "fail": 3, "error": 4}
 
 THRESHOLDS = {"title_ok": TITLE_OK, "title_mismatch": TITLE_MISMATCH, "contain_ok": CONTAIN_OK,
@@ -105,14 +108,17 @@ def compare(ref: Reference, rec: dict) -> dict:
     if not ref.title and len(tokens(text)) < 3:
         # Only an identifier was given (for example a bare DOI link): nothing to compare.
         return {"status": "not_compared", "fields": {}}
+    # A record can hold the title in two languages (PubMed VernacularTitle, Crossref
+    # original-title). The citation is right when it agrees with one of them.
+    titles = [t for t in [rec.get("title"), *(rec.get("alt_titles") or [])] if t] or [""]
     if ref.title:
-        score = title_similarity(ref.title, rec.get("title"))
-        fields["title"] = {"cited": ref.title, "found": rec.get("title") or "", "score": score,
+        score, found = max((title_similarity(ref.title, t), t) for t in titles)
+        fields["title"] = {"cited": ref.title, "found": found if score >= TITLE_OK else titles[0], "score": score,
                            "ok": score >= TITLE_OK}
         mismatch = score < TITLE_MISMATCH
     else:
-        score = containment(rec.get("title"), text)
-        fields["title"] = {"cited": ref.raw, "found": rec.get("title") or "", "score": score,
+        score, found = max((containment(t, text), t) for t in titles)
+        fields["title"] = {"cited": ref.raw, "found": found if score >= CONTAIN_OK else titles[0], "score": score,
                            "ok": score >= CONTAIN_OK, "method": "words of the record title found in the entry"}
         mismatch = score < CONTAIN_MISMATCH
     if ref.authors and rec_first:
@@ -121,10 +127,16 @@ def compare(ref: Reference, rec: dict) -> dict:
         fields["first_author"] = {"cited": ref.authors[0], "found": rec_first, "ok": same,
                                   **({"note": "listed later in the record"} if elsewhere else {})}
     elif not ref.title and rec_first:
-        present = slug(rec_first) in {slug(w) for w in tokens(text)}
+        present = name_in_text(rec_first, text)
         fields["first_author"] = {"cited": "", "found": rec_first, "ok": present,
                                   "method": "record first author found in the entry"}
     cited_year = ref.year
+    if not ref.title and (rec.get("year") or "")[:4].isdigit():
+        # A free-text entry can hold several years (a title such as "... 1990-2019", then the
+        # year of publication). Compare the one nearest to the record's year.
+        years = find_years(text)
+        if years:
+            cited_year = min(years, key=lambda y: abs(int(y) - int(rec["year"][:4])))
     if cited_year and rec.get("year"):
         fields["year"] = {"cited": cited_year, "found": rec["year"], "ok": bool(_year_ok(cited_year, rec["year"]))}
     bad = [k for k, v in fields.items() if not v["ok"]]
@@ -181,9 +193,26 @@ def _notice_text(ns: list[dict]) -> str:
     return "; ".join(x for x in (", ".join(bits), who) if x)
 
 
+def _when(ns: list[dict], as_of: str, what: str) -> str:
+    """Whether a notice came before or after the manuscript date (ISO dates)."""
+    dates = sorted(n["date"] for n in ns if n.get("date"))
+    if not (dates and as_of):
+        return ""
+    first = dates[0]
+    n = min(len(first), len(as_of))
+    if first[:n] == as_of[:n]:
+        return f" The {what} ({first}) is from about the time of the manuscript date ({as_of})."
+    if first[:n] < as_of[:n]:
+        return (f" The {what} ({first}) came before the manuscript date ({as_of}): the problem was "
+                "public when the work was cited.")
+    return f" The {what} ({first}) came after the manuscript date ({as_of})."
+
+
 async def _status(out: Outcome, src: Sources, crossref_doi: str | None, pubmed: dict | None,
-                  arxiv: dict | None) -> None:
+                  arxiv: dict | None, as_of: str = "") -> None:
     ref = out.ref
+    found = out.record if out.exists.get("status") == "found_by_search" else {}
+    doi, pmid = ref.doi or (found or {}).get("doi", ""), ref.pmid or (found or {}).get("pmid", "")
     notices: list[dict] = []
     checked: list[str] = []
     if crossref_doi:
@@ -194,9 +223,9 @@ async def _status(out: Outcome, src: Sources, crossref_doi: str | None, pubmed: 
             checked.append("Crossref")
         except ServiceError as exc:
             out.errors.append(str(exc))
-    if ref.doi or ref.pmid:
+    if doi or pmid:
         try:
-            oa = await src.openalex_work(doi=ref.doi or None, pmid=None if ref.doi else ref.pmid)
+            oa = await src.openalex_work(doi=doi or None, pmid=None if doi else pmid)
             checked.append("OpenAlex")
             if oa and oa.get("is_retracted"):
                 notices.append({"type": "retraction", "label": "Retracted", "via": "OpenAlex", "date": "",
@@ -247,12 +276,17 @@ async def _status(out: Outcome, src: Sources, crossref_doi: str | None, pubmed: 
         if cat == "corrected" and groups["retracted"]:
             continue  # a correction to a retracted work changes nothing for the citing author
         text = _notice_text(ns)
-        if cat == "retracted":
-            out.add("fail", "retracted", f"Retracted ({text}).")
+        if cat == "retracted" and {n["via"] for n in ns} == {"OpenAlex"}:
+            # OpenAlex alone, with no notice in Crossref or PubMed: its flag is sometimes wrong.
+            state = "retraction_unconfirmed"
+            out.add("warn", "retraction_unconfirmed", "OpenAlex marks the work as retracted, but Crossref and "
+                    "PubMed have no retraction notice. Check the publisher's page and Retraction Watch.")
+        elif cat == "retracted":
+            out.add("fail", "retracted", f"Retracted ({text}).{_when(ns, as_of, 'retraction')}")
         elif cat == "republished":
             out.add("warn", "republished", f"Retracted and republished ({text}); cite the republished version.")
         elif cat == "concern":
-            out.add("warn", "concern", f"Expression of concern ({text}).")
+            out.add("warn", "concern", f"Expression of concern ({text}).{_when(ns, as_of, 'expression of concern')}")
         else:
             out.add("note", "corrected", f"Corrected ({text}). Check that the cited result was not changed.")
     out.findings.sort(key=lambda f: -ORDER[f["level"]])
@@ -265,45 +299,101 @@ async def _status(out: Outcome, src: Sources, crossref_doi: str | None, pubmed: 
 
 # ---------------------------------------------------------------- one reference
 
+async def _archived(out: Outcome, src: Sources) -> str:
+    """The Wayback Machine copy of a dead link, as text for the finding ("" when there is none)."""
+    try:
+        snap = await src.wayback(out.ref.url)
+    except ServiceError:
+        return ""
+    if not snap:
+        return ". The Wayback Machine has no copy."
+    out.suggestion = snap["url"]
+    return f". An archived copy exists ({snap['date']}): {snap['url']}"
+
+
+BOOKISH = {"book", "inbook", "incollection", "chapter", "report", "techreport", "thesis", "phdthesis",
+           "mastersthesis", "manual", "booklet", "proceedings", "mvbook", "collection", "reference"}
+
+
+def _best(ref: Reference, cands: list[dict]) -> tuple[dict | None, float]:
+    """The candidate record that agrees best with the citation, and its score (0..1)."""
+    best, best_score = None, 0.0
+    for c in cands:
+        f = compare(ref, c)["fields"]
+        if "title" not in f:
+            continue
+        score = f["title"]["score"]
+        if "year" in f and not f["year"]["ok"]:
+            score *= 0.6
+        if "first_author" in f and not f["first_author"]["ok"]:
+            score *= 0.8
+        if score > best_score:
+            best, best_score = c, round(score, 3)
+    return best, best_score
+
+
+def _ident(rec: dict) -> str:
+    return (f"doi:{rec['doi']}" if rec.get("doi") else f"PMID {rec['pmid']}" if rec.get("pmid")
+            else f"ISBN {rec['isbn']}" if rec.get("isbn") else "")
+
+
 async def _search(out: Outcome, src: Sources) -> None:
-    """A reference without a usable identifier: search Crossref, then try its web page."""
+    """A reference without a usable identifier: search Crossref, then PubMed, OpenAlex,
+    DataCite and (for books and reports) Open Library; then try its web page."""
     ref = out.ref
     first = ref.authors[0] if ref.authors else ""
     query = " ".join(x for x in (ref.title, first, ref.year) if x) if ref.title else entry_text(ref)
+    title = ref.title or guess_title(entry_text(ref))
     searched = len(tokens(query)) >= 3
+    best, best_score, via = None, 0.0, ""
+    answered, failed = [], []
     if searched:
         try:
-            cands = await src.crossref_search(query, rows=5)
+            best, best_score = _best(ref, await src.crossref_search(query, rows=5))
+            via = "Crossref search"
+            answered.append("Crossref")
         except ServiceError as exc:
-            out.errors.append(str(exc))
+            failed.append(exc)
+        if best_score < SEARCH_FOUND and len(tokens(title)) >= 3:
+            # Crossref lacks many PubMed-only records, datasets, books and reports.
+            searches = {"PubMed": src.pubmed_search(title, first if ref.title else ""),
+                        "OpenAlex": src.openalex_search(title), "DataCite": src.datacite_search(title)}
+            if ref.type.lower() in BOOKISH or not ref.title:
+                searches["Open Library"] = src.openlibrary_search(title, first)
+            got = await asyncio.gather(*searches.values(), return_exceptions=True)
+            for name, cands in zip(searches, got):
+                if isinstance(cands, ServiceError):
+                    failed.append(cands)
+                    continue
+                if isinstance(cands, BaseException):
+                    raise cands
+                answered.append(name)
+                b, score = _best(ref, cands)
+                if score > best_score:
+                    best, best_score, via = b, score, f"{name} search"
+        if not answered:
+            out.errors += [str(e) for e in failed]
             out.exists = {"status": "error", "via": []}
             return
-        best, best_score = None, 0.0
-        for c in cands:
-            f = compare(ref, c)["fields"]
-            if "title" not in f:
-                continue
-            score = f["title"]["score"]
-            if "year" in f and not f["year"]["ok"]:
-                score *= 0.6
-            if "first_author" in f and not f["first_author"]["ok"]:
-                score *= 0.8
-            if score > best_score:
-                best, best_score = c, round(score, 3)
+        if failed:
+            out.add("note", "search_incomplete", "Some searches did not answer ("
+                    + "; ".join(dict.fromkeys(str(e) for e in failed)) + "); the others were used.")
+        service = via.removesuffix(" search")
         if best and best_score >= SEARCH_FOUND:
             out.record = best
-            out.exists = {"status": "found_by_search", "via": ["Crossref search"], "confidence": best_score}
+            out.exists = {"status": "found_by_search", "via": [via], "confidence": best_score}
             out.match = {**compare(ref, best), "record": _record_summary(best)}
-            if best.get("doi"):
-                out.suggestion = f"doi:{best['doi']}"
-                out.add("note", "add_identifier", f"No identifier given; Crossref has a matching record, "
-                        f"doi:{best['doi']} (confidence {best_score}). Adding the DOI makes the reference checkable.")
+            if ident := _ident(best):
+                out.suggestion = ident.replace("PMID ", "pmid:").replace("ISBN ", "isbn:")
+                out.add("note", "add_identifier", f"No identifier given; {service} has a matching record, "
+                        f"{ident} (confidence {best_score}). Adding it makes the reference checkable.")
             return
         if best and best_score >= SEARCH_POSSIBLE and not ref.url:
-            out.exists = {"status": "possible_match", "via": ["Crossref search"], "confidence": best_score}
+            ident = _ident(best)
+            out.exists = {"status": "possible_match", "via": [via], "confidence": best_score}
             out.match = {"status": "not_checked", "record": _record_summary(best)}
-            out.add("warn", "possible_match", f"No identifier given; the closest Crossref record is {describe(best)}"
-                    f"{', doi:' + best['doi'] if best.get('doi') else ''} (confidence {best_score}). "
+            out.add("warn", "possible_match", f"No identifier given; the closest {service} record is "
+                    f"{describe(best)}{', ' + ident if ident else ''} (confidence {best_score}). "
                     "Check that it is the intended work.")
             return
     if ref.url:
@@ -311,14 +401,21 @@ async def _search(out: Outcome, src: Sources) -> None:
             code = await src.url_status(ref.url)
         except ServiceError as exc:
             out.exists = {"status": "web_page_unreachable", "via": ["web"]}
-            out.add("warn", "web_unreachable", f"Web page not reachable ({exc}): {ref.url}")
+            out.add("warn", "web_unreachable", f"Web page not reachable ({exc}): {ref.url}"
+                    + await _archived(out, src))
             return
         if code < 400:
             out.exists = {"status": "web_page", "via": ["web"], "http": code}
             out.add("note", "web_page", f"Web page reachable (HTTP {code}); its content was not checked.")
+        elif code in BLOCKED:
+            # The server answered but refuses automated requests: the page is not shown to be gone.
+            out.exists = {"status": "web_page_blocked", "via": ["web"], "http": code}
+            out.add("note", "web_blocked", f"The web server refused the automated request (HTTP {code}), so the "
+                    f"page was not confirmed. Open it by hand: {ref.url}")
         else:
             out.exists = {"status": "web_page_unreachable", "via": ["web"], "http": code}
-            out.add("warn", "web_unreachable", f"Web page not reachable (HTTP {code}): {ref.url}")
+            out.add("warn", "web_unreachable", f"Web page not reachable (HTTP {code}): {ref.url}"
+                    + await _archived(out, src))
         return
     if not searched:
         out.exists = {"status": "unidentifiable", "via": []}
@@ -330,8 +427,15 @@ async def _search(out: Outcome, src: Sources) -> None:
 
 
 async def check_reference(ref: Reference, src: Sources, pubmed: dict[str, dict], arxiv: dict[str, dict],
-                          prefetch_errors: dict[str, str]) -> dict:
+                          prefetch_errors: dict[str, str], as_of: str = "", cited: Reference | None = None) -> dict:
+    """One reference. `ref` holds the identifiers to look up; `cited` is the entry as written
+    when they differ (a PMCID resolved to a PMID and a DOI)."""
+    cited = cited or ref
     out = Outcome(ref)
+    if cited is not ref:
+        got = ", ".join(x for x in (f"PMID {ref.pmid}" if ref.pmid and not cited.pmid else "",
+                                    f"doi:{ref.doi}" if ref.doi and not cited.doi else "") if x)
+        out.add("note", "pmcid_resolved", f"{cited.pmcid} was looked up in Europe PMC: {got}.")
     records: dict[str, dict] = {}
     via: list[str] = []
     crossref_doi = None
@@ -397,15 +501,21 @@ async def check_reference(ref: Reference, src: Sources, pubmed: dict[str, dict],
     elif ref.isbn:
         out.exists = {"status": "unconfirmed", "via": []}
     else:
-        if ref.pmcid:
-            out.add("note", "pmcid_only", f"{ref.pmcid} was not looked up; Starbuck searched by the citation instead.")
+        if ref.pmcid and cited is ref:
+            out.add("note", "pmcid_only", f"Europe PMC does not know {ref.pmcid}; Starbuck searched by the "
+                    "citation instead.")
         await _search(out, src)
 
     # Two identifiers that disagree
     if "doi" in records and "pmid" in records:
         d, p = records["doi"], records["pmid"]
-        if (p.get("doi") and p["doi"] != ref.doi) or (not p.get("doi") and
-                                                       title_similarity(d.get("title"), p.get("title")) < TITLE_MISMATCH):
+        same_title = title_similarity(d.get("title"), p.get("title")) >= TITLE_OK
+        if p.get("doi") and p["doi"] != ref.doi and same_title:
+            # Same title, two DOIs: often a second DOI of one work (a reprint, a copy in another journal).
+            out.add("warn", "id_doi_differs", f"PubMed gives doi:{p['doi']} for PMID {ref.pmid}, not the cited "
+                    f"doi:{ref.doi}, but both records have the same title. Check which DOI is the version you read.")
+        elif (p.get("doi") and p["doi"] != ref.doi) or (not p.get("doi") and
+                                                         title_similarity(d.get("title"), p.get("title")) < TITLE_MISMATCH):
             out.add("fail", "id_conflict", f"The DOI and the PMID point to different works: doi:{ref.doi} is "
                     f"{describe(d)}; PMID {ref.pmid} is {describe(p)}.")
     if "doi" in records and "arxiv" in records:
@@ -423,14 +533,15 @@ async def check_reference(ref: Reference, src: Sources, pubmed: dict[str, dict],
     if out.exists["status"] in ("found", "found_by_search"):
         if out.exists["status"] == "found_by_search" and out.record and out.record.get("doi"):
             crossref_doi = out.record["doi"]
-        await _status(out, src, crossref_doi, records.get("pmid"), records.get("arxiv"))
+        pubmed_rec = records.get("pmid") or (out.record if (out.record or {}).get("source") == "PubMed" else None)
+        await _status(out, src, crossref_doi, pubmed_rec, records.get("arxiv"), as_of)
 
     if out.errors:
         level = "note" if out.exists["status"] not in ("error", "not_checked") else "warn"
         out.add(level, "service_error", "Some checks could not run: " + "; ".join(dict.fromkeys(out.errors)))
 
     return {
-        "key": ref.key, "label": ref.label(), "verdict": out.verdict(), "reference": ref.to_dict(),
+        "key": ref.key, "label": cited.label(), "verdict": out.verdict(), "reference": cited.to_dict(),
         "exists": out.exists, "match": out.match, "status": out.status, "findings": out.findings,
         **({"suggestion": out.suggestion} if out.suggestion else {}),
     }
@@ -438,10 +549,22 @@ async def check_reference(ref: Reference, src: Sources, pubmed: dict[str, dict],
 
 # ---------------------------------------------------------------- whole documents
 
+async def _resolve_pmcid(ref: Reference, src: Sources) -> Reference:
+    """A reference with a PMCID and no DOI or PMID: add the PMID and DOI that Europe PMC gives."""
+    if not ref.pmcid or ref.doi or ref.pmid:
+        return ref
+    try:
+        ids = await src.pmcid_ids(ref.pmcid)
+    except ServiceError:
+        return ref
+    return replace(ref, pmid=ids.get("pmid", ""), doi=ids.get("doi", "")) if ids else ref
+
+
 async def check_references(refs: list[Reference], src: Sources,
-                           progress: Callable[[int, int], None] | None = None) -> list[dict]:
-    pmids = [r.pmid for r in refs if r.pmid]
-    arxivs = [r.arxiv for r in refs if r.arxiv]
+                           progress: Callable[[int, int], None] | None = None, as_of: str = "") -> list[dict]:
+    work = list(await asyncio.gather(*(_resolve_pmcid(r, src) for r in refs)))
+    pmids = [r.pmid for r in work if r.pmid]
+    arxivs = [r.arxiv for r in work if r.arxiv]
     pubmed: dict[str, dict] = {}
     arxiv: dict[str, dict] = {}
     errors: dict[str, str] = {}
@@ -457,15 +580,15 @@ async def check_references(refs: list[Reference], src: Sources,
             errors["arxiv"] = str(exc)
     done = 0
 
-    async def one(r: Reference) -> dict:
+    async def one(r: Reference, w: Reference) -> dict:
         nonlocal done
-        res = await check_reference(r, src, pubmed, arxiv, errors)
+        res = await check_reference(w, src, pubmed, arxiv, errors, as_of, cited=r)
         done += 1
         if progress:
             progress(done, len(refs))
         return res
 
-    return list(await asyncio.gather(*(one(r) for r in refs)))
+    return list(await asyncio.gather(*(one(r, w) for r, w in zip(refs, work))))
 
 
 def summarise(results: list[dict]) -> dict[str, int]:
@@ -482,7 +605,7 @@ async def check_document(doc: Document, src: Sources, include_uncited: bool = Fa
     if doc.style == "numbered" or include_uncited:
         # Numbered lists are written for this text, so every entry is checked, cited or not.
         keys += [k for k in doc.references if k not in cited]
-    results = await check_references([doc.references[k] for k in keys], src, progress)
+    results = await check_references([doc.references[k] for k in keys], src, progress, doc.date)
     for res in results:
         res["cited_in"] = [{"line": c.line, "sentence": c.sentence} for c in doc.citing(res["key"])]
     missing = [{"key": k, "lines": lines} for k, lines in doc.missing().items()]
@@ -492,6 +615,7 @@ async def check_document(doc: Document, src: Sources, include_uncited: bool = Fa
         "starbuck": __version__,
         "checked_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "document": doc.path, "style": doc.style, "bibliography": doc.bibliography, "warnings": doc.warnings,
+        **({"manuscript_date": doc.date} if doc.date else {}),
         "levels": [1, 2, 3],
         "summary": {"references_checked": len(results), **counts, "citations": len(doc.citations),
                     "cited_keys": len(cited), "missing_entries": len(missing), "uncited_entries": len(uncited),

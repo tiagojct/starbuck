@@ -7,17 +7,18 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-from .ids import trim
+from .ids import DOI_BODY, trim
 
 VERDICT = {"fail": "Fail", "error": "Not checked", "warn": "Check", "note": "Note", "pass": "Pass"}
 EXISTS = {"found": "Found", "found_by_search": "Found by search", "possible_match": "Possible match",
           "not_found": "Not found", "not_found_by_search": "Not found by search", "unconfirmed": "Unconfirmed",
           "unidentifiable": "Too little to search", "web_page": "Web page",
-          "web_page_unreachable": "Web page unreachable", "error": "Not checked", "not_checked": "Not checked"}
+          "web_page_unreachable": "Web page unreachable", "web_page_blocked": "Web page not confirmed", "error": "Not checked", "not_checked": "Not checked"}
 MATCH = {"ok": "Matches", "partial": "Differs in part", "mismatch": "Different work",
          "not_compared": "Nothing to compare", "not_checked": ""}
 STATUS = {"ok": "No notices", "retracted": "Retracted", "republished": "Retracted and republished",
-          "concern": "Expression of concern", "corrected": "Corrected", "notice": "Is a notice",
+          "concern": "Expression of concern", "corrected": "Corrected",
+          "retraction_unconfirmed": "Retraction flag (OpenAlex only)", "notice": "Is a notice",
           "preprint_published": "Published version exists", "not_checked": ""}
 ACTION = {
     "doi_not_found": "Ask the authors for the source. Correct the DOI or remove the reference.",
@@ -25,6 +26,9 @@ ACTION = {
     "arxiv_not_found": "Correct the arXiv ID or remove the reference.",
     "wrong_work": "Replace the identifier with the one of the cited work, or correct the citation.",
     "id_conflict": "Find out which identifier is wrong and correct it.",
+    "id_doi_differs": "Keep the DOI of the version you read, and the PMID of the same version.",
+    "retraction_unconfirmed": "Look for a retraction notice on the publisher's page. If there is one, remove the "
+                              "citation or say in the text that the work was retracted.",
     "retracted": "Remove the citation, or say in the text that the work was retracted and why it is cited.",
     "republished": "Cite the republished version.",
     "concern": "Read the expression of concern and decide whether the citation can stay.",
@@ -58,7 +62,7 @@ def doi_link(doi: str, text: str | None = None) -> str:
     return f"[{esc(text or 'doi:' + doi)}](https://doi.org/{quote(doi, safe='/:;')})"
 
 
-MESSAGE_DOI = re.compile(r"(?:doi:)?(10\.\d{4,9}/[^\s\"'<>|\\{}]+)")
+MESSAGE_DOI = re.compile(rf"(?:doi:)?({DOI_BODY})")
 
 
 def linkify(message: str) -> str:
@@ -174,7 +178,9 @@ def to_quarto(result: dict) -> str:
                 f"{'s' if run['citations'] != 1 else ''}, judged by {esc(run['judged_by'])}: "
                 + ", ".join(f"{v[k]} {CLAIM[k].lower()}" for k in CLAIM)
                 + f". Evidence: {b.get('full text', 0)} full text, {b.get('abstract', 0)} abstract only, "
-                f"{b.get('none', 0)} none. {esc(citation_line(run))} See [Claim support](#claim-support)."]
+                f"{b.get('none', 0)} none. {esc(citation_line(run))}"
+                + (f" The two judges disagree on {run['disagreements']}." if run.get("disagreements") else "")
+                + " See [Claim support](#claim-support)."]
     out.append("")
     out.append("Results: Fail means the reference is wrong or the work was retracted. Check means a person should "
                "look at it. Note is information that needs no change in most cases. Not checked means a service "
@@ -244,10 +250,13 @@ def to_quarto(result: dict) -> str:
     sources = ", ".join("the cited web pages" if x == "web" else x for x in result.get("sources") or []) or "none"
     out += [
         "## How this report was made", "",
-        "Starbuck checks three things for each reference. Level 1: the identifier (DOI, PMID, arXiv ID, ISBN) "
-        "resolves; a reference without one is searched in Crossref. Level 2: title, first author and year agree "
+        "Starbuck checks three things for each reference. Level 1: the identifier (DOI, PMID, PMCID, arXiv ID, "
+        "ISBN) resolves; a reference without one is searched in Crossref, then in PubMed, OpenAlex, DataCite and, "
+        "for books and reports, Open Library; a dead link is looked up in the Wayback Machine. Level 2: title, first author and year agree "
         "with the record. Level 3: Crossref (including Retraction Watch data), PubMed and OpenAlex show no "
-        "retraction, expression of concern or correction, and a cited preprint has no published version.",
+        "retraction, expression of concern or correction, and a cited preprint has no published version."
+        + (f" Notice dates are compared with the manuscript date ({esc(result['manuscript_date'])})."
+           if result.get("manuscript_date") else ""),
         "",
         f"Rules: titles match at a similarity of {t['title_ok']} or more and are a different work below "
         f"{t['title_mismatch']}; for numbered entries, {int(t['contain_ok'] * 100)}% of the record title's words must "
@@ -299,6 +308,8 @@ def _claims_section(result: dict) -> list[str]:
         detail = f"\"{c['quote']}\"" if c.get("quote") else c.get("reason", "")
         if c.get("quote") and c.get("reason"):
             detail += f" {c['reason']}"
+        if c.get("disagreement"):
+            detail += " Judges disagree: " + "; ".join(f"{m}: {CLAIM.get(v, v)}" for m, v in c["judges"].items()) + "."
         out.append(f"| {c['line']} | {esc(c['key'])} | {CLAIM.get(c['verdict'], esc(c['verdict']))} | {esc(evidence)} | "
                    f"{esc(sentence)} | {esc(detail)} |")
     out.append("")
@@ -309,13 +320,18 @@ def _claims_method(run: dict) -> str:
     if not run.get("run"):
         why = run.get("reason") or "not requested"
         return f"Level 4 (whether each source supports the sentence that cites it) was not run: {esc(why)}."
-    return ("Level 4: for each citing sentence, Starbuck took the best text of the cited work (open-access full "
-            "text from Europe PMC or a local file, otherwise the abstract from PubMed, Europe PMC, Crossref or "
-            f"OpenAlex), ranked its passages against the sentence (BM25) and gave the top passages to "
+    return ("Level 4: for each citing sentence, Starbuck took the best text of the cited work (a local file, the "
+            "Zotero library when asked, open-access full text from Europe PMC, the arXiv PDF or an open-access PDF "
+            "found through Unpaywall; otherwise the abstract from PubMed, Europe PMC, Crossref or OpenAlex), cut "
+            "off its reference list, ranked its passages against the sentence (BM25) and gave the top passages to "
             f"{esc(run['judged_by'])}. The model had to quote the passage it relied on; a quotation that does not "
             f"appear word for word in the source text (at least {run.get('min_quote', 20)} characters) is "
             f"rejected and the verdict becomes Cannot assess ({run.get('rejected_quotes', 0)} rejected). Level 4 "
-            "never makes a reference Fail: Not supported is Check, Partly supported is Note. The citing sentences "
+            "never makes a reference Fail: Not supported is Check, Partly supported is Note. Each number of the "
+            "sentence (a percentage, a decimal, or an integer of 10 or more that is not a year) must be in the "
+            "source text: a Supported verdict on a full text that lacks one becomes Partly supported "
+            f"({run.get('number_downgrades', 0)} changed). With two judges, the less supportive verdict is kept "
+            "where they differ. The citing sentences "
             "were sent to the model's provider."
             " Citation recall is the share of sentences with at least one citation judged Supported or Partly "
             "supported; citation precision is the share of citations judged Supported or Partly supported. Both "

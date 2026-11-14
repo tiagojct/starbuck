@@ -9,6 +9,10 @@
 3. validate: code checks that the quoted passage appears word for word in the
    source text. A quote that does not appear is rejected and the verdict becomes
    cannot_assess.
+   Numbers in the sentence (35%, 2.4, 1,200) must appear in the source text: a
+   "supported" verdict on a full text that lacks one of them becomes partly_supported.
+   With two judges, both answer every claim; where they differ, the less supportive
+   judged verdict is kept and the disagreement is reported.
 4. apply: verdicts go into the result. Level 4 never makes a reference Fail:
    not_supported is Check, partly_supported is Note. Citation recall, citation
    precision and overcitation are computed over the judged citations.
@@ -80,11 +84,14 @@ def eligible(res: dict | None) -> str:
 
 
 async def prepare(doc: Document, result: dict, src: Sources,
-                  texts: dict[str, str | Path] | None = None) -> dict:
+                  texts: dict[str, str | Path] | None = None, zotero=None) -> dict:
     """Citations with their candidate passages, and the source text of every cited work."""
     texts = texts or {}
     by_key = {r["key"]: r for r in result["references"]}
-    sources: dict[str, dict] = {}
+    wanted = list(dict.fromkeys(c.key for c in doc.citations if not eligible(by_key.get(c.key))))
+    got = await asyncio.gather(*(source_text(doc.references[k], by_key[k], src, texts.get(k), zotero)
+                                 for k in wanted))
+    sources: dict[str, dict] = dict(zip(wanted, got))
     claims: list[dict] = []
     seen: set[tuple[str, str]] = set()
 
@@ -95,8 +102,6 @@ async def prepare(doc: Document, result: dict, src: Sources,
         claim = {"id": f"c{len(claims) + 1:03d}", "key": c.key, "line": c.line, "sentence": c.sentence}
         why = eligible(by_key.get(c.key))
         if not why:
-            if c.key not in sources:
-                sources[c.key] = await source_text(doc.references[c.key], by_key[c.key], src, texts.get(c.key))
             st = sources[c.key]
             if st["basis"] == NONE:
                 why = "no full text or abstract was found" + (f" ({'; '.join(st['notes'])})" if st["notes"] else "")
@@ -135,15 +140,19 @@ def parse_answer(content: str) -> dict:
     return data
 
 
-def judge_settings(env: dict[str, str] | None = None) -> dict[str, str] | None:
-    """Judge endpoint from STARBUCK_JUDGE_URL, STARBUCK_JUDGE_MODEL and STARBUCK_JUDGE_KEY, or None."""
+def judge_settings(env: dict[str, str] | None = None, prefix: str = "STARBUCK_JUDGE") -> dict[str, str] | None:
+    """Judge endpoint from STARBUCK_JUDGE_URL, STARBUCK_JUDGE_MODEL and STARBUCK_JUDGE_KEY, or None.
+    prefix="STARBUCK_JUDGE2" reads the second judge; its URL and key default to the first judge's."""
     e = os.environ if env is None else env
-    url, model = e.get("STARBUCK_JUDGE_URL", "").strip(), e.get("STARBUCK_JUDGE_MODEL", "").strip()
+    url, model = e.get(f"{prefix}_URL", "").strip(), e.get(f"{prefix}_MODEL", "").strip()
+    key = e.get(f"{prefix}_KEY", "").strip()
+    if prefix != "STARBUCK_JUDGE" and model and not url:
+        url, key = e.get("STARBUCK_JUDGE_URL", "").strip(), key or e.get("STARBUCK_JUDGE_KEY", "").strip()
     if not (url and model):
         return None
     if not url.rstrip("/").endswith("/chat/completions"):
         url = url.rstrip("/") + "/chat/completions"
-    return {"url": url, "model": model, "key": e.get("STARBUCK_JUDGE_KEY", "").strip()}
+    return {"url": url, "model": model, "key": key}
 
 
 async def judge(claims: list[dict], settings: dict[str, str],
@@ -160,7 +169,7 @@ async def judge(claims: list[dict], settings: dict[str, str],
             body = {"model": settings["model"], "messages": messages(c), "temperature": 0}
             last = ""
             async with sem:
-                for attempt in range(3):
+                for attempt in range(4):
                     try:
                         r = await http.post(settings["url"], json=body)
                     except httpx.HTTPError as exc:
@@ -170,6 +179,11 @@ async def judge(claims: list[dict], settings: dict[str, str],
                     if r.status_code == 429 or r.status_code >= 500:
                         last = f"HTTP {r.status_code}"
                         await asyncio.sleep(2 * (attempt + 1))
+                        continue
+                    if r.status_code == 400 and "temperature" in body and "temperature" in r.text.lower():
+                        # Some models accept only their default temperature; ask again without it.
+                        body.pop("temperature")
+                        last = "HTTP 400 (temperature not accepted)"
                         continue
                     if r.status_code != 200:
                         last = f"HTTP {r.status_code}"
@@ -188,6 +202,49 @@ async def judge(claims: list[dict], settings: dict[str, str],
 
 
 # ---------------------------------------------------------------- 3. validate
+
+NUMBER = re.compile(r"(?<![\w.,])(\d{1,3}(?:,\d{3})+|\d+(?:[.,]\d+)?)\s*(%|percent\b|per cent\b)?")
+
+
+def _num(raw: str) -> str:
+    if re.fullmatch(r"\d{1,3}(?:,\d{3})+", raw):
+        return raw.replace(",", "")
+    v = raw.replace(",", ".")
+    return v.rstrip("0").rstrip(".") if "." in v else v
+
+
+def numbers(text: str) -> set[str]:
+    """The numbers of a text, normalised (1,200 -> 1200; 2,5 -> 2.5; 35.0 -> 35)."""
+    return {_num(m.group(1)) for m in NUMBER.finditer(text or "")}
+
+
+def claim_numbers(sentence: str) -> list[str]:
+    """The numbers a citing sentence states as findings: a percentage, a decimal, or an integer of
+    10 or more that is not a year. Citation markup is left out."""
+    out = []
+    for m in NUMBER.finditer(query_text(sentence)):
+        raw, pct = m.group(1), m.group(2)
+        n = _num(raw)
+        if pct or "." in n:
+            out.append(n)
+        elif n.isdigit() and int(n) >= 10 and not (len(n) == 4 and 1900 <= int(n) <= 2099):
+            out.append(n)
+    return list(dict.fromkeys(out))
+
+
+def missing_numbers(sentence: str, source: str) -> list[str]:
+    have = numbers(normalise(source))
+    out = []
+    for n in claim_numbers(sentence):
+        alt = {n}
+        try:  # 35% can be written 0.35
+            f = float(n)
+            alt |= {_num(f"{f / 100:.4f}"), _num(f"{f * 100:.4f}")}
+        except ValueError:
+            pass
+        if not alt & have:
+            out.append(n)
+    return out
 
 def validate(prepared: dict, verdicts: dict[str, dict]) -> list[dict]:
     """Final level 4 results: every claim gets a verdict; quotes are checked against the source text."""
@@ -220,9 +277,40 @@ def validate(prepared: dict, verdicts: dict[str, dict]) -> list[dict]:
                 problem = "The quotation does not appear word for word in the source text."
         if verdict == "cannot_assess":
             row["quote"] = ""
+        if not problem and verdict in SUPPORTING and (gone := missing_numbers(c["sentence"], texts[c["key"]]["text"])):
+            row["numbers_missing"] = gone
+            if verdict == "supported" and c["basis"] == FULL_TEXT:
+                row.update(verdict="partly_supported", number_check="downgraded",
+                           reason=f"The full text does not contain {', '.join(gone)} from the sentence; "
+                                  f"the judge said supported. {reason}".strip())
+            else:
+                row["reason"] = f"{reason} Not in the {c['basis']}: {', '.join(gone)}.".strip()
         if problem:
             row.update(verdict="cannot_assess", rejected=True, rejected_verdict=verdict,
                        reason=f"{problem} Rejected verdict: {verdict or 'none'}. {reason}".strip())
+        out.append(row)
+    return out
+
+
+SUPPORT_RANK = {"not_supported": 0, "partly_supported": 1, "supported": 2}
+
+
+def combine(first: list[dict], second: list[dict]) -> list[dict]:
+    """Two judges' validated rows: where they differ, keep the less supportive judged verdict
+    (cannot_assess only when neither could judge) and record both."""
+    other = {r["id"]: r for r in second}
+    out = []
+    for a in first:
+        b = other.get(a["id"])
+        if not b or not a.get("judged") or not b.get("judged"):
+            out.append(a)
+            continue
+        judged = [r for r in (a, b) if r["verdict"] in SUPPORT_RANK]
+        pick = min(judged, key=lambda r: SUPPORT_RANK[r["verdict"]]) if judged else a
+        row = dict(pick)
+        row["judges"] = {a.get("judged_by", "judge 1"): a["verdict"], b.get("judged_by", "judge 2"): b["verdict"]}
+        if a["verdict"] != b["verdict"]:
+            row["disagreement"] = True
         out.append(row)
     return out
 
@@ -293,6 +381,8 @@ def apply(result: dict, claims: list[dict], judged_by: str) -> dict:
         "basis": {b: sum(c["basis"] == b for c in claims) for b in (FULL_TEXT, ABSTRACT, NONE)},
         "rejected_quotes": sum(bool(c.get("rejected")) for c in claims), "min_quote": MIN_QUOTE,
         "citation_recall": recall, "citation_precision": precision, "overcitations": len(over),
+        "disagreements": sum(bool(c.get("disagreement")) for c in claims),
+        "number_downgrades": sum(c.get("number_check") == "downgraded" for c in claims),
     }
     result["summary"].update(summarise(result["references"]))
     return result

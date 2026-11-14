@@ -1,9 +1,9 @@
 """Level 4 evidence: the best text available for a cited work, split into passages
 and ranked against the sentence that cites it.
 
-Order: a local text file given by the caller (for example Zotero's full text), then
-Europe PMC open-access full text, then an abstract (PubMed, Europe PMC, Crossref,
-OpenAlex). Every result says which one was used, so a verdict can state whether it
+Order: a local text file given by the caller, then the Zotero library (when one is
+given), Europe PMC open-access full text, the arXiv PDF, an open-access PDF that
+Unpaywall knows, then an abstract (PubMed, Europe PMC, Crossref, OpenAlex). Every result says which one was used, so a verdict can state whether it
 rests on the full text or on the abstract only.
 """
 
@@ -109,6 +109,25 @@ def jats_passages(xml: str) -> list[dict]:
     return out
 
 
+REFS_HEADING = re.compile(r"\n[ \t]*(?:\d+\.?\s*)?(?:references|bibliography|literature cited|works cited)"
+                          r"[ \t]*\n", re.IGNORECASE)
+
+
+def document_passages(text: str) -> tuple[str, list[dict]]:
+    """A full text from a PDF or a text file: the reference list at the end is cut off (its titles
+    would match the citing sentence), then the text is split into passages of whole sentences."""
+    heads = list(REFS_HEADING.finditer(text))
+    if heads and heads[-1].start() > 0.5 * len(text):
+        text = text[:heads[-1].start()]
+    paras = [x for x in re.split(r"\n\s*\n", text) if x.strip()]
+    if len(paras) < 5:  # a PDF without blank lines between paragraphs
+        return text, chunk(text, "", MAX_WORDS)
+    out: list[dict] = []
+    for para in paras:
+        out += chunk(para, "", MAX_WORDS)
+    return text, out
+
+
 def text_passages(text: str) -> list[dict]:
     """Passages of a plain text file: paragraphs (blank-line separated), cut at sentence ends."""
     out: list[dict] = []
@@ -153,9 +172,11 @@ def _ids(ref: Reference, res: dict) -> dict[str, str]:
             "pmcid": ref.pmcid}
 
 
-async def source_text(ref: Reference, res: dict, src: Sources, local_file: str | Path | None = None) -> dict:
+async def source_text(ref: Reference, res: dict, src: Sources, local_file: str | Path | None = None,
+                      zotero=None) -> dict:
     """The best text for one cited work: {basis, source, text, passages, notes}."""
     notes: list[str] = []
+    rec = (res.get("match") or {}).get("record") or {}
     if local_file:
         path = Path(local_file).expanduser()
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -166,6 +187,16 @@ async def source_text(ref: Reference, res: dict, src: Sources, local_file: str |
         notes.append(f"The local file {path.name} has no text.")
 
     ids = _ids(ref, res)
+    if zotero is not None:
+        try:
+            found = zotero.text(ids["doi"], ref.title or rec.get("title", ""))
+        except OSError as exc:
+            found = None
+            notes.append(f"Zotero: {exc}")
+        if found:
+            text, passages = document_passages(found[0])
+            if len(passages) >= 3:
+                return {"basis": FULL_TEXT, "source": found[1], "text": text, "passages": passages, "notes": notes}
     epmc = None
     if any(ids.values()):
         try:
@@ -185,6 +216,27 @@ async def source_text(ref: Reference, res: dict, src: Sources, local_file: str |
             notes.append(str(exc))
         except ET.ParseError:
             notes.append(f"The Europe PMC full text of {epmc['pmcid']} could not be read.")
+
+    # Open-access PDFs: arXiv for a cited preprint, then the copy that Unpaywall knows.
+    pdfs: list[tuple[str, str, str]] = []
+    if ref.arxiv:
+        pdfs.append((f"https://export.arxiv.org/pdf/{ref.arxiv}", "arXiv", f"arXiv PDF {ref.arxiv}"))
+    if ids["doi"]:
+        try:
+            if url := await src.unpaywall_pdf(ids["doi"]):
+                pdfs.append((url, "open-access PDF", f"open-access PDF ({url.split('/')[2]}, via Unpaywall)"))
+        except ServiceError as exc:
+            notes.append(str(exc))
+    for url, service, name in pdfs:
+        try:
+            text = await src.pdf_text(url, service)
+        except ServiceError as exc:
+            notes.append(str(exc))
+            continue
+        if text:
+            text, passages = document_passages(text)
+            if len(passages) >= 3:
+                return {"basis": FULL_TEXT, "source": name, "text": text, "passages": passages, "notes": notes}
 
     pmid = ids["pmid"] or (epmc or {}).get("pmid", "")
     doi = ids["doi"] or (epmc or {}).get("doi", "")

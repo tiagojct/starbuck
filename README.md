@@ -11,10 +11,10 @@ scholarly records. It writes a Quarto report that renders to HTML or Word.
 
 | Level | Question | Sources |
 |---|---|---|
-| 1. Exists | Does the DOI, PMID, arXiv ID or ISBN resolve? Without an identifier, can the work be found? | Crossref, DataCite, doi.org, PubMed, arXiv, Open Library, Crossref search |
+| 1. Exists | Does the DOI, PMID, PMCID, arXiv ID or ISBN resolve? Without an identifier, can the work be found? Is a dead link archived? | Crossref, DataCite, doi.org, PubMed, Europe PMC, arXiv, Open Library; search in Crossref, PubMed, OpenAlex, DataCite and Open Library; the Wayback Machine |
 | 2. Matches | Do the cited title, first author and year agree with the record? | The record from level 1 |
-| 3. Stands | Is the work retracted, under an expression of concern or corrected? Is it a notice itself? Was a cited preprint published? | Crossref (with Retraction Watch data), PubMed, OpenAlex, arXiv |
-| 4. Supports (optional) | Does the source support the sentence that cites it? | Europe PMC open-access full text or the abstract (PubMed, Europe PMC, Crossref, OpenAlex); a language model judges |
+| 3. Stands | Is the work retracted, under an expression of concern or corrected? Is it a notice itself? Was a cited preprint published? Did the notice come before the manuscript date? | Crossref (with Retraction Watch data), PubMed, OpenAlex, arXiv |
+| 4. Supports (optional) | Does the source support the sentence that cites it? | Full text (a local file, your Zotero library, Europe PMC, the arXiv PDF, an open-access PDF through Unpaywall) or the abstract; one or two language models judge |
 
 Each reference gets one result:
 
@@ -22,7 +22,7 @@ Each reference gets one result:
 |---|---|
 | Fail | The identifier does not exist, belongs to a different work, two identifiers disagree, or the work was retracted. |
 | Check | A person should look: a field differs, an expression of concern, a possible match only, an unreachable web page. |
-| Note | Information that needs no change in most cases: a correction, a published version of a preprint, a DOI found by search. |
+| Note | Information that needs no change in most cases: a correction, a published version of a preprint, a DOI found by search, a web page that refuses automated requests. |
 | Pass | Nothing found. |
 | Not checked | A service did not answer. Run the check again later. |
 
@@ -35,6 +35,13 @@ risk or prevalence. Headings, tables, figures, captions, code, the reference
 list and sections headed Methods or Results are left out: the authors' own
 methods and data need no citation. The rules are simple and English only, so
 the list is for a person to read; it never makes a reference Fail or Check.
+
+A retraction that only OpenAlex reports is Check, not Fail: OpenAlex marks some
+works as retracted with no notice in Crossref or PubMed. A DOI and a PMID that
+point to records with the same title are Check (the work can have two DOIs).
+
+When the YAML header has `date:` (or with `--date`), the report says whether a
+retraction or an expression of concern came before or after that date.
 The JSON keeps the first 50 sentences under `uncited_sentences` (the key
 `uncited` lists the bibliography entries that are not cited).
 
@@ -90,7 +97,15 @@ starbuck check paper.qmd --all-entries       # also check entries that are not c
 starbuck check paper.qmd --out reports/      # another report folder
 starbuck ids 10.1183/09031936.00080312 arXiv:1706.03762
 starbuck check paper.qmd --claims            # also level 4 (see below)
+starbuck check ch1.qmd ch2.qmd ch3.qmd       # several files, one report each
+starbuck fix paper.qmd                       # propose corrections (see below)
+starbuck cache --clear                       # empty the cache of service answers
 ```
+
+Starbuck keeps the answers of the services in a cache, so a second run asks
+again only for new or changed references. Answers that report retractions and
+corrections are kept for one day; records for seven days. Use `--no-cache` to ask
+every service again.
 
 To check a Word manuscript, convert it to Markdown first:
 
@@ -125,6 +140,39 @@ with the reason, the cited and the recorded metadata side by side, the sentence
 that cites it, and a suggested action. A section at the end states the rules and
 the services used.
 
+### Corrections: starbuck fix
+
+`starbuck fix` checks the references, then writes corrected copies of the
+bibliography and one diff to `_starbuck`. It changes only what a record
+supports:
+
+- adds a DOI, PMID or ISBN that a search found (confidence 0.9 or more), or the
+  DOI that the PubMed record of a cited PMID gives;
+- corrects the year or the title when the identifier is right but the field
+  differs;
+- replaces a cited preprint with its published version (DOI, year and journal);
+- replaces a dead link with its Wayback Machine copy.
+
+It lists everything else (a wrong DOI, a retraction, a wrong author) for a
+person. It edits BibTeX in place of the changed fields and keeps the rest of the
+file as it is; CSL JSON and YAML files are written again. For numbered
+references, it adds identifiers to the entries in the manuscript.
+
+1. Read the diff:
+
+   ```sh
+   starbuck fix paper.qmd
+   ```
+
+2. Apply the changes. Starbuck keeps a `.bak` copy of each changed file:
+
+   ```sh
+   starbuck fix paper.qmd --in-place
+   ```
+
+`--from _starbuck/paper-references.json` uses an earlier report instead of a new
+check.
+
 ### Exit codes
 
 | Code | Meaning |
@@ -137,14 +185,26 @@ the services used.
 ## Level 4: claim support
 
 For each sentence that cites a source, Starbuck takes the best text of that
-source: a local text file you give, open-access full text from Europe PMC, or
-otherwise the abstract. It ranks the passages of that text against the
+source, in this order: a local text file you give, your Zotero library (with
+`--zotero`), open-access full text from Europe PMC, the arXiv PDF, an
+open-access PDF that Unpaywall knows (needs `STARBUCK_EMAIL`), and otherwise
+the abstract. The reference list at the end of a full text is cut off. It ranks the passages of that text against the
 sentence (BM25) and gives the best five to a language model. The model answers
 Supported, Partly supported, Not supported or Cannot assess, and quotes the
 passage it relies on. Starbuck then checks that the quotation appears word for
 word in the source text. A quotation that is not there is rejected, and the
 verdict becomes Cannot assess. The report states for each verdict whether it
 rests on the full text or on the abstract only.
+
+Numbers get a second check. Each number of the citing sentence (a percentage, a
+decimal, or an integer of 10 or more that is not a year) must be in the source
+text. When the full text does not have one, a Supported verdict becomes Partly
+supported. With the abstract only, the report names the number, and the verdict
+stays.
+
+With a second judge (`STARBUCK_JUDGE2_MODEL`), both models answer every
+sentence. Where they differ, Starbuck keeps the less supportive verdict and the
+report shows both.
 
 The report also gives two scores over the judged citations (Cannot assess is
 left out). Citation recall: the share of citing sentences with at least one
@@ -168,7 +228,13 @@ supported in a sentence that another of its sources supports gets a Note
    ```sh
    starbuck check paper.qmd --claims
    starbuck check paper.qmd --claims --text smith2020=smith2020.txt   # full text you have
+   starbuck check paper.qmd --claims --zotero                          # full texts from Zotero
    ```
+
+`--zotero` reads a copy of `~/Zotero/zotero.sqlite` (or the folder you give,
+or `STARBUCK_ZOTERO_DIR`), so Zotero can stay open and the library does not
+change. Starbuck matches a cited work by DOI or by its exact title, and takes
+the text from Zotero's full-text index or from the PDF.
 
 Without `--claims`, or without the model settings, level 4 does not run and the
 report says so. Level 4 sends the citing sentences and the source passages to
@@ -186,10 +252,14 @@ A language model can be wrong. Read the source before you change the text.
 | `OPENALEX_API_KEY` | OpenAlex API key. |
 | `QUARTO_PATH` | Path to Quarto when it is not on the PATH. |
 | `STARBUCK_JUDGE_URL`, `STARBUCK_JUDGE_MODEL`, `STARBUCK_JUDGE_KEY` | Level 4 model (OpenAI-compatible endpoint). |
+| `STARBUCK_JUDGE2_MODEL`, `STARBUCK_JUDGE2_URL`, `STARBUCK_JUDGE2_KEY` | Optional second judge. The URL and key default to the first judge's. |
+| `STARBUCK_ZOTERO_DIR` | Zotero data folder for `--zotero` (default `~/Zotero`). |
+| `STARBUCK_CACHE_DIR` | Folder of the cache (default: the user cache folder). |
+| `STARBUCK_NO_CACHE` | Set to 1 to turn the cache off. |
 
 ## Use from an agent (MCP)
 
-`starbuck-mcp` is an MCP server with four tools:
+`starbuck-mcp` is an MCP server with five tools:
 
 - `check_manuscript`: checks a manuscript and writes the report.
 - `check_references`: checks references given directly (an identifier, citation
@@ -199,6 +269,8 @@ A language model can be wrong. Read the source before you change the text.
   be given per citation key.
 - `record_claims`: level 4, step 2. Takes the agent's verdicts, checks the
   quoted passages and adds level 4 to the report.
+- `fix_references`: proposes corrections to the reference list and returns the
+  diff. With `in_place`, it changes the bibliography and keeps a `.bak` copy.
 
 Inside an agent, the agent's own model judges, so no `STARBUCK_JUDGE_*`
 settings are needed.
@@ -221,11 +293,47 @@ Example configuration for an MCP client:
 }
 ```
 
+## Continuous checks
+
+### GitHub Action
+
+```yaml
+on: [push, pull_request]
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tiagojct/starbuck@v0.3.0
+        with:
+          manuscripts: paper.qmd
+          email: ${{ vars.STARBUCK_EMAIL }}
+```
+
+The job fails when a reference fails. Set `fail-on-check: true` to fail also
+on Check. The job summary shows the result, and the HTML reports are in the
+artifact `starbuck-reports`.
+
+### pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/tiagojct/starbuck
+    rev: v0.3.0
+    hooks:
+      - id: starbuck
+```
+
+The hook checks each changed Markdown or Quarto file that has citations, and
+stops the commit when a reference fails.
+
 ## Privacy
 
 Starbuck sends identifiers and reference details (title, authors, year, or the
 reference as written) to the services listed above, and it opens cited web
-pages. Levels 1 to 3 do not send the manuscript text. Level 4 (only with
+pages and asks the Wayback Machine about dead links. For level 4 it downloads
+open-access PDFs. `--zotero` reads your Zotero library on your computer and
+sends nothing from it. The cache stays on your computer. Levels 1 to 3 do not send the manuscript text. Level 4 (only with
 `--claims`) sends the citing sentences and source passages to the model you
 set. Starbuck collects no usage data.
 

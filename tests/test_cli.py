@@ -61,7 +61,8 @@ async def test_mcp_server_over_stdio(tmp_path):
     async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
         await s.initialize()
         tools = {t.name: t for t in (await s.list_tools()).tools}
-        assert set(tools) == {"check_manuscript", "check_references", "prepare_claims", "record_claims"}
+        assert set(tools) == {"check_manuscript", "check_references", "prepare_claims", "record_claims",
+                              "fix_references"}
         assert tools["check_references"].annotations.read_only_hint is True
         res = await s.call_tool("check_manuscript", {"path": str(ms), "formats": []})
         assert not res.is_error, res.content
@@ -74,3 +75,26 @@ async def test_mcp_server_over_stdio(tmp_path):
         assert data["reports"]["qmd"].endswith("x-references.qmd")
         bad = await s.call_tool("check_references", {"references": []})
         assert bad.is_error and "at least one" in bad.content[0].text
+
+
+async def test_several_manuscripts_and_if_cited(tmp_path, fake, capsys):
+    (tmp_path / "refs.json").write_text(json.dumps(REFS[:1]), encoding="utf-8")
+    good = tmp_path / "good.md"
+    good.write_text("---\nbibliography: refs.json\n---\nSpirometry needs standards [@miller].\n", encoding="utf-8")
+    plain = tmp_path / "README.md"
+    plain.write_text("# Notes\n\nNo citations here.\n", encoding="utf-8")
+    args = parser().parse_args(["check", str(good), str(plain), "--to", "", "--quiet", "--if-cited"])
+    assert await run_check(args, transport=fake.transport()) == 0
+    args = parser().parse_args(["check", str(good), str(plain), "--to", "", "--quiet"])
+    assert await run_check(args, transport=fake.transport()) == 2  # a file without citations cannot be checked
+
+
+def test_cache_is_off_with_a_transport_and_on_without(tmp_path, monkeypatch, fake):
+    from starbuck.cli import make_sources
+    monkeypatch.setenv("STARBUCK_CACHE_DIR", str(tmp_path))
+    monkeypatch.delenv("STARBUCK_NO_CACHE", raising=False)
+    assert make_sources(transport=fake.transport()).disk is None
+    s = make_sources()
+    assert s.disk is not None and s.disk.path == tmp_path / "cache.sqlite"
+    monkeypatch.setenv("STARBUCK_NO_CACHE", "1")
+    assert make_sources().disk is None

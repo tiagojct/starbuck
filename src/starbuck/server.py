@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import json
+import sqlite3
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
@@ -21,11 +22,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import __version__
 from .check import check_document, check_given
 from .claims import VERDICTS, apply, not_run, prepare, validate
+from .fix import apply_plan, diff, propose
 from .cli import make_sources
 from .parse import ParseError, read_manuscript, references_from_identifiers
 from .render import RenderError, render
 from .report import report_stem, write_outputs
 from .sources import ServiceError
+from .zotero import ZoteroLibrary
 
 INSTRUCTIONS = """\
 Reference-integrity checks. For each reference: level 1, does the identifier resolve
@@ -154,10 +157,12 @@ def _report_paths(path: str, report_dir: str | None) -> tuple[Path, Path, Path]:
 @mcp.tool(annotations=FILES)
 @safe
 async def prepare_claims(path: str, bibliography: list[str] | None = None, report_dir: str | None = None,
-                         texts: dict[str, str] | None = None, offset: int = 0, limit: int = 20) -> dict:
+                         texts: dict[str, str] | None = None, offset: int = 0, limit: int = 20,
+                         zotero: bool = False, zotero_dir: str | None = None) -> dict:
     """Level 4, step 1. Checks the references (levels 1 to 3) and returns, for each citing
     sentence, the best passages of the cited source (open-access full text, a local text file
-    from texts {citekey: path}, or the abstract). Judge each claim from its passages, then call
+    from texts {citekey: path}, the local Zotero library with zotero=true, an open-access PDF, or the
+    abstract). Judge each claim from its passages, then call
     record_claims. Results come in pages: use offset and limit; total gives the number of claims.
     Writes <name>-references.json and <name>-claims.json to report_dir (default _starbuck)."""
     doc = read_manuscript(path, bibliography)
@@ -170,9 +175,15 @@ async def prepare_claims(path: str, bibliography: list[str] | None = None, repor
     if claims_json.is_file() and report_json.is_file() and offset > 0:
         prepared = json.loads(claims_json.read_text(encoding="utf-8"))
     else:
+        library = None
+        if zotero:
+            try:
+                library = ZoteroLibrary(zotero_dir)
+            except (OSError, sqlite3.Error) as exc:
+                raise ToolError(f"Zotero library not readable: {exc}") from exc
         async with make_sources() as src:
             result = await check_document(doc, src)
-            prepared = await prepare(doc, result, src, texts)
+            prepared = await prepare(doc, result, src, texts, library)
         not_run(result, "prepared; the verdicts have not been recorded yet (record_claims)")
         write_outputs(result, out_dir, report_stem(doc.path))
         claims_json.write_text(json.dumps(prepared, indent=1, ensure_ascii=False), encoding="utf-8")
@@ -220,6 +231,43 @@ async def record_claims(path: str, verdicts: list[ClaimVerdict], report_dir: str
         "reports": reports, **({"render_error": render_error} if render_error else {}),
         "verdicts_allowed": list(VERDICTS),
     }
+
+
+@mcp.tool(annotations=FILES)
+@safe
+async def fix_references(path: str, bibliography: list[str] | None = None, report_dir: str | None = None,
+                         in_place: bool = False) -> dict:
+    """Propose corrections to the reference list of a manuscript: DOIs, PMIDs or ISBNs found by
+    search, the year or title from the record, the published version of a cited preprint, and an
+    archived copy of a dead link. Writes corrected copies and a diff to report_dir (default
+    _starbuck); with in_place=true it changes the bibliography files and keeps a .bak copy.
+    Show the diff to the user before you set in_place. Other problems come back in manual."""
+    doc = read_manuscript(path, bibliography)
+    if doc.style == "none":
+        raise ToolError("No citations found.")
+    async with make_sources() as src:
+        result = await check_document(doc, src)
+        plan = await propose(doc, result, src)
+    files = apply_plan(doc, plan)
+    out_dir = Path(report_dir).expanduser() if report_dir else Path(doc.path).parent / "_starbuck"
+    written = {}
+    if files:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        patch = out_dir / f"{Path(doc.path).stem}-fix.diff"
+        patch.write_text(diff(files), encoding="utf-8")
+        written["diff"] = str(patch)
+        for file, (old, new, _) in files.items():
+            if in_place:
+                file.with_name(file.name + ".bak").write_text(old, encoding="utf-8")
+                file.write_text(new, encoding="utf-8")
+                written[str(file)] = "changed (backup .bak)"
+            else:
+                copy = out_dir / f"{file.stem}-fixed{file.suffix}"
+                copy.write_text(new, encoding="utf-8")
+                written[str(file)] = str(copy)
+    made = [c for _, _, done in files.values() for c in done]
+    return {"changes": [vars(c) for c in made], "not_written": [vars(c) for c in plan.changes if c not in made],
+            "manual": plan.manual, "files": written, "diff": diff(files)[:20000]}
 
 
 def main() -> None:

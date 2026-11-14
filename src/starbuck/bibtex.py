@@ -10,9 +10,10 @@ from __future__ import annotations
 import re
 import unicodedata
 
-ENTRY_START = re.compile(r"^[ \t]*@([A-Za-z]+)[ \t]*([{(])", re.MULTILINE)
-MONTHS = {m: str(i) for i, m in enumerate(
-    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], start=1)}
+ENTRY_START = re.compile(r"(?:^|(?<=[})]))[ \t]*@([A-Za-z]+)[ \t]*([{(])", re.MULTILINE)
+MONTHS = {name[:n]: str(i) for i, name in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+     "november", "december"], start=1) for n in (3, len(name))} | {"sept": "9"}
 
 ACCENTS = {"'": "\u0301", "`": "\u0300", "^": "\u0302", '"': "\u0308", "~": "\u0303", "=": "\u0304",
            ".": "\u0307", "u": "\u0306", "v": "\u030c", "H": "\u030b", "c": "\u0327", "k": "\u0328",
@@ -102,7 +103,7 @@ def _value(text: str, i: int, close: str, macros: dict[str, str]) -> tuple[str, 
             if not m:
                 raise BibError(f"unexpected {c!r}")
             word = m.group(0)
-            parts.append(macros.get(word.lower(), MONTHS.get(word.lower()[:3], word)) if not word.isdigit()
+            parts.append(macros.get(word.lower(), MONTHS.get(word.lower(), word)) if not word.isdigit()
                          else word)
             i += len(word)
         while i < n and text[i].isspace():
@@ -114,7 +115,9 @@ def _value(text: str, i: int, close: str, macros: dict[str, str]) -> tuple[str, 
 
 
 def parse(text: str) -> tuple[list[dict], list[str]]:
-    """Return (entries, problems). An entry is {"type", "key", "fields"} with lower-case field names."""
+    """Return (entries, problems). An entry is {"type", "key", "fields", "line", "span", "spans"}:
+    lower-case field names; span is (start, end) of the entry in text, spans the (start, end) of
+    each field's value as written (with its braces or quotes)."""
     entries: list[dict] = []
     problems: list[str] = []
     macros: dict[str, str] = {}
@@ -143,11 +146,13 @@ def parse(text: str) -> tuple[list[dict], list[str]]:
                 macros[name.strip().lower()] = value
                 continue
             key, sep, rest = body.partition(",")
+            base = start + 1 + len(key) + 1  # offset of rest in text
             key = key.strip()
             if not sep or not key or re.search(r"\s", key):
                 problems.append(f"line {line}: @{kind} entry without a readable key; skipped")
                 continue
             fields: dict[str, str] = {}
+            spans: dict[str, tuple[int, int]] = {}
             i = 0
             rest = rest + close
             while True:
@@ -159,9 +164,12 @@ def parse(text: str) -> tuple[list[dict], list[str]]:
                 if not fm:
                     raise BibError(f"cannot read a field near {rest[i:i + 20]!r}")
                 i += fm.end()
+                vs = i + len(rest[i:]) - len(rest[i:].lstrip())
                 value, i = _value(rest, i, close, macros)
                 fields[fm.group(1).lower()] = value
-            entries.append({"type": kind, "key": key, "fields": fields, "line": line})
+                spans[fm.group(1).lower()] = (base + vs, base + len(rest[:i].rstrip()))
+            entries.append({"type": kind, "key": key, "fields": fields, "line": line,
+                            "span": (m.start() + len(m.group(0)) - len(m.group(0).lstrip()), end), "spans": spans})
         except BibError as exc:
             problems.append(f"line {line}: @{kind} entry {body.split(',', 1)[0].strip()!r} skipped ({exc})")
     return entries, problems

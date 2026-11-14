@@ -79,6 +79,10 @@ PUBMED = {
                                     "procedures so that results from different laboratories can be compared."),
                      ("RESULTS", "The standards cover equipment, quality control, test procedures and the "
                                  "acceptability and repeatability of forced expiratory manoeuvres.")]},
+    # PubMed only: no DOI, not in Crossref
+    "30000001": {"title": "Home spirometry telemonitoring after lung transplantation: a cohort study.", "doi": "",
+                 "authors": [("Fonseca", "Joana")], "journal": "Respir Med", "year": "2018",
+                 "types": ["Journal Article"], "comments": []},
     "9500320": {"title": WAKEFIELD["title"][0] + ".", "doi": WAKEFIELD["DOI"], "authors": [("Wakefield", "A J")],
                 "journal": "Lancet", "year": "1998", "types": ["Journal Article", "Retracted Publication"],
                 "comments": [("RetractionIn", "Lancet. 2010 Feb 6;375(9713):445", "20137807")]},
@@ -112,6 +116,8 @@ age range.</p></sec>
 less well than those for Caucasians.</p></sec>
 <sec><title>Discussion</title><p>The equations do not cover people of mixed ethnic origin directly.</p></sec>
 </body></article>"""}
+WAYBACK = {"https://example.org/gone": {"available": True, "status": "200", "timestamp": "20190312101010",
+                                       "url": "http://web.archive.org/web/20190312101010/https://example.org/gone"}}
 WEB = {"https://ginasthma.org/reports/": 200, "https://example.org/gone": 404}
 
 
@@ -196,12 +202,21 @@ class FakeServices:
                 return js({"message": {"items": search_results(q["query.bibliographic"])}})
             if q.get("filter", "").startswith("updates:"):
                 return js({"message": {"items": UPDATES.get(q["filter"][len("updates:"):], [])}})
+        if host == "api.datacite.org" and path == "/dois":
+            hits = [d for d in DATACITE.values()
+                    if q.get("query", "").lower() in d["attributes"]["titles"][0]["title"].lower()]
+            return js({"data": hits})
         if host == "api.datacite.org":
             doi = path[len("/dois/"):].lower()
             return js({"data": DATACITE[doi]}) if doi in DATACITE else js({"errors": []}, 404)
         if host == "doi.org":
             doi = path[len("/api/handles/"):].lower()
             return js({"responseCode": 1}) if doi in HANDLES else js({"responseCode": 100}, 404)
+        if host == "eutils.ncbi.nlm.nih.gov" and path.endswith("esearch.fcgi"):
+            words = set(q.get("term", "").lower().split(" and ")[0].replace(":", " ").split())
+            ids = [p for p, r in PUBMED.items() if words and words <= set(r["title"].lower().replace(":", " ")
+                                                                           .rstrip(".").split())]
+            return js({"esearchresult": {"idlist": ids}})
         if host == "eutils.ncbi.nlm.nih.gov" and path.endswith("efetch.fcgi"):
             return httpx.Response(200, text=pubmed_xml(q.get("id", "").split(",")))
         if host == "api.openalex.org" and path.startswith("/works/doi:"):
@@ -210,10 +225,21 @@ class FakeServices:
                 return js({"id": "https://openalex.org/W1", "doi": f"https://doi.org/{doi}",
                            "display_name": "x", "is_retracted": doi in OPENALEX_RETRACTED})
             return js({"error": "not found"}, 404)
+        if host == "api.openalex.org" and path == "/works":
+            return js({"results": []})
         if host == "api.openalex.org":
             return js({"error": "not found"}, 404)
         if host == "export.arxiv.org":
             return httpx.Response(200, text=arxiv_atom(q.get("id_list", "").split(",")))
+        if host == "openlibrary.org" and path == "/search.json":
+            docs = [{"key": "/works/OL1W", "title": d["title"], "subtitle": d.get("subtitle"),
+                     "author_name": [a["name"] for a in d["authors"]], "first_publish_year": int(d["publish_date"]),
+                     "isbn": [i]} for i, d in OPENLIBRARY.items()
+                    if q.get("title", "").lower().split(":")[0] in d["title"].lower()]
+            return js({"docs": docs})
+        if host == "archive.org":
+            snap = WAYBACK.get(q.get("url", ""))
+            return js({"archived_snapshots": {"closest": snap} if snap else {}})
         if host == "openlibrary.org":
             key = q.get("bibkeys", "")
             isbn = key.split(":", 1)[-1]

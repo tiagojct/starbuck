@@ -24,6 +24,7 @@ class Reference:
     arxiv: str = ""
     isbn: str = ""
     url: str = ""
+    origin: str = ""  # the file the entry was read from (not reported)
 
     def identifiers(self) -> dict[str, str]:
         return {k: v for k in ("doi", "pmid", "pmcid", "arxiv", "isbn") if (v := getattr(self, k))}
@@ -38,7 +39,7 @@ class Reference:
         return self.raw
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in asdict(self).items() if v not in ("", [], None)}
+        return {k: v for k, v in asdict(self).items() if v not in ("", [], None) and k != "origin"}
 
 
 @dataclass
@@ -57,6 +58,7 @@ class Document:
     bibliography: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     uncited_sentences: list[dict] = field(default_factory=list)  # sentences that state a finding, no citation
+    date: str = ""  # the manuscript date (YAML date:, or --date), ISO: YYYY, YYYY-MM or YYYY-MM-DD
 
     def cited_keys(self) -> list[str]:
         seen: list[str] = []

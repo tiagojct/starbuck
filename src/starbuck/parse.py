@@ -365,6 +365,12 @@ def _numbered(text: str, masked: str, body_start: int) -> tuple[list[Citation], 
     return cites, list(refs.values()), head.start()
 
 
+def iso_date(value: object) -> str:
+    """YYYY-MM-DD, YYYY-MM or YYYY from a YAML date; "" for Quarto keywords such as today."""
+    m = re.match(r"\s*(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?", str(value or ""))
+    return "-".join(x for x in m.groups() if x) if m else ""
+
+
 def read_manuscript(path: str | Path, bibliography: list[str | Path] | None = None) -> Document:
     p = Path(path).expanduser()
     if p.suffix.lower() not in TEXT_SUFFIXES:
@@ -375,7 +381,8 @@ def read_manuscript(path: str | Path, bibliography: list[str | Path] | None = No
     text = p.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
     meta, body_start = _front_matter(text)
     masked = _mask(text)
-    doc = Document(path=str(p), style="none", uncited_sentences=uncited_sentences(text, masked, body_start))
+    doc = Document(path=str(p), style="none", uncited_sentences=uncited_sentences(text, masked, body_start),
+                   date=iso_date(meta.get("date")))
 
     bib_paths: list[Path] = [Path(b).expanduser() for b in (bibliography or [])]
     if not bib_paths:
@@ -386,6 +393,8 @@ def read_manuscript(path: str | Path, bibliography: list[str | Path] | None = No
     refs: list[Reference] = []
     for bp in bib_paths:
         got, problems = read_bibliography(bp.resolve())
+        for r in got:
+            r.origin = str(bp.resolve())
         refs += got
         doc.warnings += problems
         doc.bibliography.append(str(bp.resolve()))
@@ -409,6 +418,8 @@ def read_manuscript(path: str | Path, bibliography: list[str | Path] | None = No
         doc.style = "numbered"
         doc.citations, refs, _ = numbered
         doc.references = {r.key: r for r in refs}
+        for r in refs:
+            r.origin = str(p)
         return doc
     cites = _citekeys(text, masked, body_start, set())
     if cites:
