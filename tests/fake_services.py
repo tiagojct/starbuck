@@ -46,6 +46,12 @@ CROSSREF = {
     "10.1000/notice": {"DOI": "10.1000/notice", "type": "journal-article", "title": ["Retraction notice"],
                        "author": [], "issued": {"date-parts": [[2022]]},
                        "update-to": [{"DOI": "10.1000/other", "type": "retraction"}]},
+    # As the Lancet's record of Mehra 2020: the article lists its own notices in update-to and updated-by.
+    "10.1000/backwards": {"DOI": "10.1000/backwards", "type": "journal-article",
+                          "title": ["RETRACTED: Hydroxychloroquine in a multinational registry"],
+                          "author": [{"family": "Mehra", "given": "M"}], "issued": {"date-parts": [[2020]]},
+                          "update-to": [{"DOI": "10.1000/backwards-retraction", "type": "retraction"}],
+                          "updated-by": [{"DOI": "10.1000/backwards-retraction", "type": "retraction"}]},
 }
 UPDATES = {
     WAKEFIELD["DOI"]: [{"DOI": "10.1016/s0140-6736(04)15715-2", "update-to": [
@@ -57,6 +63,9 @@ UPDATES = {
     "10.1000/concern": [{"DOI": "10.1000/eoc", "update-to": [
         {"DOI": "10.1000/concern", "type": "expression_of_concern", "source": "publisher",
          "updated": {"date-parts": [[2023, 5]]}}]}],
+    "10.1000/backwards": [{"DOI": "10.1000/backwards-retraction", "update-to": [
+        {"DOI": "10.1000/backwards", "type": "retraction", "source": "publisher", "label": "Retraction",
+         "updated": {"date-parts": [[2020, 5, 22]]}}]}],
     "10.1000/corrected": [{"DOI": "10.1000/erratum", "update-to": [
         {"DOI": "10.1000/corrected", "type": "correction", "source": "publisher",
          "updated": {"date-parts": [[2020, 6]]}}]}],

@@ -2,6 +2,10 @@
 
 Starbuck follows semantic versions. Before 1.0, a change in the second number (0.4) can add commands, options and result codes; the meaning of Fail, Check, Note and Pass does not change.
 
+## 0.4.2 (2026-11-15)
+
+- A retracted article whose Crossref record lists its own notices in `update-to` (The Lancet does this for Mehra et al. 2020) is no longer reported as "a retraction notice, not the work itself". The retraction is still a Fail.
+
 ## 0.4.1 (2026-11-14)
 
 - Word: citations inserted with Mendeley Cite (the current Mendeley add-in) and Citavi are read, with their records, like those of Zotero, Mendeley Desktop and EndNote. Paragraphs inside content controls are read.

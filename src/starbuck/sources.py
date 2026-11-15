@@ -468,9 +468,12 @@ def from_crossref(m: dict) -> dict:
         "published_version": published or "",
         "alt_titles": [t for t in (plain(x) for x in m.get("original-title") or []) if t],
         "abstract": plain(m.get("abstract")),
-        # A work that itself updates another DOI is a notice (retraction, correction...).
+        # A work that itself updates another DOI is a notice (retraction, correction...). Some publishers
+        # also put the notices of an article in its own update-to: a DOI that updates this work as well
+        # (updated-by) is one of its notices, not a work that this one is a notice for.
         "notice_of": [{"doi": norm_doi(u.get("DOI")) or "", "type": (u.get("type") or "").lower()}
-                      for u in m.get("update-to") or []],
+                      for u in m.get("update-to") or []
+                      if norm_doi(u.get("DOI")) not in {norm_doi(x.get("DOI")) for x in m.get("updated-by") or []}],
     }
 
 

@@ -72,6 +72,13 @@ async def test_concern_corrected_notice(src):
     assert notice["verdict"] == "warn" and "is_notice" in codes(notice)
 
 
+async def test_article_that_lists_its_own_notices_is_not_a_notice(src):
+    res = await one(src, ref("m", title="Hydroxychloroquine in a multinational registry", authors=["Mehra"],
+                            year="2020", doi="10.1000/backwards"))
+    assert res["status"]["status"] == "retracted" and "retracted" in codes(res)
+    assert "is_notice" not in codes(res)
+
+
 async def test_doi_pmid_conflict(src):
     res = await one(src, ref("x", title=QUANJER_TITLE, authors=["Quanjer"], year="2012",
                             doi="10.1183/09031936.00080312", pmid="16055882"))
